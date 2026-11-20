@@ -1,97 +1,84 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="dark">
-  <title>Neon Tide | Cover Studio</title>
-  <link rel="stylesheet" href="./style.css">
-  <script type="module" src="./src/studio.js"></script>
+  <meta name="theme-color" content="#19141f">
+  <title>Neon Tide | Your cast. Your coast.</title>
+  <link href="./style.css" rel="stylesheet">
+  <script src="./src/studio.js" type="module"></script>
 </head>
 <body>
   <header class="topbar">
-    <a class="brand" href="./" aria-label="Neon Tide home">
-      <span class="brand-mark" aria-hidden="true">N</span>
-      <span><strong>NEON TIDE</strong><small>Cover Studio</small></span>
-    </a>
-    <div class="history" aria-label="Edit history">
-      <button id="undo" type="button" aria-label="Undo"><span aria-hidden="true">↶</span> Undo</button>
-      <button id="redo" type="button" aria-label="Redo"><span aria-hidden="true">↷</span> Redo</button>
-    </div>
-    <span class="private"><i></i> Photos stay on this device</span>
+    <a class="brand" href="./" aria-label="Neon Tide home"><b class="monogram">N<span>↗</span></b><span><strong>NEON TIDE</strong><small>COVER STUDIO</small></span></a>
+    <span class="privacy"><i></i> Offline · Your photos stay with you</span>
+    <nav class="history" aria-label="Edit history"><button id="undo" type="button" aria-label="Undo">↶ Undo</button><button id="redo" type="button" aria-label="Redo">↷ Redo</button></nav>
+    <button type="button" id="open-exports" class="primary">Export collection ↗</button>
   </header>
-
-  <main class="workbench" id="workbench">
-    <aside class="deck content" aria-label="Poster content">
+  <main class="workbench">
+    <aside class="deck library-deck" aria-label="Your photos and captions">
       <section class="group">
-        <div class="group-heading"><h2>Photo library</h2><span id="photo-count"></span></div>
-        <label class="import" for="photo-input" id="drop-zone">
-          <span aria-hidden="true">＋</span> Add photos
-          <input id="photo-input" type="file" accept="image/*" multiple>
-        </label>
-        <div id="library" class="library" aria-label="Available photos"></div>
-        <button id="auto-fill" class="quiet full" type="button">Fill panels from library <span aria-hidden="true">↗</span></button>
+        <div class="heading"><h2>Your cast</h2><span id="photo-count"></span></div>
+        <label class="import" id="drop-zone" for="photo-input"><b>＋</b><span>Add local photos<small>Choose files or drop them here</small></span><input type="file" id="photo-input" accept="image/*" multiple></label>
+        <div class="library" id="library" aria-label="Assign a photo to this panel"></div>
+        <button type="button" id="auto-fill" class="full">Auto-fill all panels <span>↗</span></button>
       </section>
-      <section class="group text-controls">
-        <div class="group-heading"><h2>Caption</h2></div>
-        <label>Title<input id="title" type="text" maxlength="36" autocomplete="off" spellcheck="false"></label>
-        <label>Subtitle<input id="subtitle" type="text" maxlength="54" autocomplete="off"></label>
-        <label>Tagline<input id="tagline" type="text" maxlength="60" autocomplete="off"></label>
-        <label>Edition<input id="edition" type="text" maxlength="18" autocomplete="off"></label>
+      <section class="group caption-controls">
+        <div class="heading"><h2>Make it yours</h2><span>LIVE TEXT</span></div>
+        <label for="title">Main title<input id="title" type="text" maxlength="36" spellcheck="false" autocomplete="off"></label>
+        <label for="subtitle">Signature subtitle<input id="subtitle" type="text" maxlength="54" autocomplete="off"></label>
+        <label for="tagline">Tagline<input id="tagline" type="text" maxlength="60" autocomplete="off"></label>
+        <label for="edition">Edition<input id="edition" type="text" maxlength="18" autocomplete="off"></label>
       </section>
+      <p class="library-note">Start with a fictional cast.<br>Make the next story your own.</p>
     </aside>
-
     <section class="stage" id="stage" aria-label="Live poster preview">
-      <div class="stage-header">
-        <h1>Live cover</h1>
-        <div id="format-picker" class="segments" aria-label="Preview size"></div>
-      </div>
-      <div id="preview-area" class="preview-area">
+      <div class="stage-header"><div><span class="eyebrow">THE PREVIEW</span><h1>Cast the coast.</h1></div><span class="dimension" id="preview-dimensions"></span></div>
+      <nav class="segments" id="format-picker" aria-label="Poster format"></nav>
+      <div class="preview-area" id="preview-area">
         <div class="preview-frame" id="preview-frame">
-          <canvas id="poster" aria-label="Your poster preview"></canvas>
-          <svg id="selection" class="selection" aria-hidden="true"><polygon id="selection-border"></polygon></svg>
+          <canvas id="poster" aria-label="Your poster. Click a panel, drag to move its photo, or scroll to zoom."></canvas>
+          <svg class="selection" id="selection" aria-hidden="true"><defs><clipPath id="crop-clip"><polygon id="clip-border"></polygon></clipPath></defs><g clip-path="url(#crop-clip)"><path id="crop-grid"></path></g><polygon id="selection-border"></polygon><g id="crop-handles"></g></svg>
+          <span class="crop-hud" id="crop-hud"></span>
         </div>
       </div>
-      <div class="stage-help"><span>Drag a panel to move its photo · Scroll to zoom</span><span id="preview-dimensions"></span></div>
-      <nav id="panel-picker" class="panel-picker" aria-label="Select a photo panel"></nav>
+      <div class="stage-help"><span><i></i> Click a panel · Drag to move · Scroll to zoom</span><span id="cast-status"></span></div>
+      <nav class="panel-picker" id="panel-picker" aria-label="Choose a panel to edit"></nav>
     </section>
-
-    <aside class="deck inspector" aria-label="Poster settings">
+    <aside class="deck inspector" aria-label="Crop, style and download">
       <section class="group">
-        <div class="group-heading"><h2>Selected panel</h2><span id="panel-number"></span></div>
-        <div class="panel-source">
-          <canvas id="panel-tile" width="112" height="80" aria-hidden="true"></canvas>
-          <label>Assigned photo<select id="assigned-photo"></select></label>
-        </div>
-        <label>Role label<input id="role" type="text" maxlength="20" autocomplete="off"></label>
+        <div class="heading"><h2>Reframe the shot</h2><span id="panel-number"></span></div>
+        <div class="source-row"><canvas id="panel-tile" width="144" height="100" aria-label="Active photo crop"></canvas><label for="assigned-photo">Photo<select id="assigned-photo"></select></label></div>
+        <label for="role">Cast role<input type="text" id="role" maxlength="20" autocomplete="off"></label>
         <div class="sliders">
-          <label for="zoom"><span>Zoom <output id="zoom-value"></output></span><input type="range" id="zoom" min="1" max="3" step=".01"></label>
-          <label for="pan-x"><span>Horizontal <output id="x-value"></output></span><input type="range" id="pan-x" min="-1" max="1" step=".01"></label>
-          <label for="pan-y"><span>Vertical <output id="y-value"></output></span><input type="range" id="pan-y" min="-1" max="1" step=".01"></label>
+          <label for="zoom"><span>Zoom<output id="zoom-value" for="zoom"></output></span><input id="zoom" type="range" min="1" max="3" step=".01"></label>
+          <label for="pan-x"><span>Horizontal<output id="x-value" for="pan-x"></output></span><input id="pan-x" type="range" min="-1" max="1" step=".01"></label>
+          <label for="pan-y"><span>Vertical<output id="y-value" for="pan-y"></output></span><input id="pan-y" type="range" min="-1" max="1" step=".01"></label>
         </div>
-        <div class="button-row">
-          <button id="flip" type="button">Flip</button>
-          <button id="center" type="button">Center</button>
-          <button id="reset-crop" type="button">Reset</button>
-        </div>
+        <div class="button-row"><button type="button" id="face-fit">Fit frame</button><button type="button" id="flip">Flip ↔</button><button type="button" id="reset-crop">Reset</button></div>
+        <label class="check" title="The hand-traced silhouette is available for the supplied Velvet sample."><input type="checkbox" id="hero-cutout"> Scenic sample silhouette</label>
       </section>
       <section class="group look">
-        <div class="group-heading"><h2>Poster look</h2></div>
-        <div class="look-grid">
-          <label>Layout<select id="layout"></select></label>
-          <label>Title finish<select id="finish"><option value="chrome">Chrome</option><option value="neon">Neon</option><option value="paper">Paper</option></select></label>
-        </div>
-        <div class="grade-label"><span>Color grade</span><output id="grade-label"></output></div>
-        <div class="grades" id="grades" aria-label="Color grade presets"></div>
-        <label class="grade-amount" for="strength"><span>Intensity <output id="strength-value"></output></span><input type="range" id="strength" min="0" max="1" step=".01"></label>
-        <label class="check"><input id="ink" type="checkbox"> Extra contrast</label>
+        <div class="heading"><h2>Set the mood</h2><span>6 GRADES</span></div>
+        <div class="look-grid"><label for="layout">Layout<select id="layout"></select></label><label for="finish">Title<select id="finish"><option value="chrome">Chrome</option><option value="neon">Neon</option><option value="paper">Paper</option></select></label></div>
+        <div class="grade-heading"><span>Color grade</span><output id="grade-label"></output></div>
+        <div class="grades" id="grades" aria-label="Choose a color grade"></div>
+        <label for="strength"><span>Grade mix<output id="strength-value" for="strength"></output></span><input id="strength" type="range" min="0" max="1" step=".01"></label>
+        <label for="ink-amount"><span>Poster ink<output id="ink-value" for="ink-amount"></output></span><input id="ink-amount" type="range" min="0" max="1" step=".01"></label>
       </section>
       <section class="group exports">
-        <div class="group-heading"><h2>Export PNG</h2></div>
-        <div id="export-sizes" class="export-sizes"></div>
+        <div class="heading"><h2>Download PNG</h2><span>FULL SIZE</span></div>
+        <div class="export-sizes" id="export-sizes"></div>
+        <p>One click. Exact pixels. Your artwork.</p>
       </section>
     </aside>
   </main>
+  <dialog id="export-tray" aria-labelledby="export-heading">
+    <div class="tray-header"><div><span class="eyebrow">THE FINISHED COLLECTION</span><h2 id="export-heading">One cover. Every format.</h2><p>Made from your photos and caption. Ready to share.</p></div><button type="button" id="close-exports" aria-label="Close export collection">✕</button></div>
+    <div class="export-cards" id="export-cards"></div>
+    <div class="tray-footer"><span><i></i> Full-resolution PNG · Saved on your device</span><button type="button" class="primary" id="download-all">Download all 3 PNGs ↗</button></div>
+  </dialog>
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 </body>
 </html>

@@ -4,33 +4,32 @@
 [![Rank](https://make.fun/badge/gta6-cover-art-01/tqhieu1105/gta6-cover-studio/rank.svg)](https://make.fun/competitions/gta6-cover-art-01)
 [![Reward](https://make.fun/badge/gta6-cover-art-01/tqhieu1105/gta6-cover-studio/reward.svg)](https://make.fun/competitions/gta6-cover-art-01)
 
-Build the cast for a fictional South Florida crime film. The starter library includes six model-generated portraits you can replace. Neon Tide combines five photo panels with bold, angled lettering and a drawn waterfront. It runs offline as a static site in desktop Chrome.
+Turn your local photos into an original coastal crime-film poster. Six distinct fictional sample subjects, slanted panels, custom chrome lettering, a script subtitle and a drawn waterfront give you a starting point. Everything runs on your device in desktop Chrome.
 
-Serve the `app/` directory with any static server, or run `node serve.ts` and open `http://127.0.0.1:8080` with Node.js 22.18 or later.
+Serve `app/` with any static HTTP server. For the included development server, use Node.js 22.18 or later and `node serve.ts --port 8080`, then open `http://127.0.0.1:8080`. The app itself has no build step, package installation, API key, account or remote dependency.
 
-- Drop one or more photos onto **Add photos**. New photos fill the panels as soon as they load. You can also fill the panels from the whole library or click a thumbnail to assign it to the selected panel.
-- Click a panel and drag inside it to position the photo. Scroll or use the zoom slider to get closer. The inspector lets you flip the photo, set its crop precisely, and write a role label.
-- Edit the title, subtitle, tagline, and edition alongside the preview. Try eight layouts, six color grades, and three title finishes. Undo and redo keep track of changes. Switching to a smaller layout keeps the hidden panel edits for when you switch back.
-- Export directly as a **1920 × 1080**, **1080 × 1350**, or **1080 × 1080** PNG. The preview and all three downloads use the same drawing code.
+1. Choose **Add local photos**, or drop images on that area. New images immediately fill the current panels. **Auto-fill all panels** starts again from the whole library; click any library thumbnail to assign it to the active panel.
+2. Click a poster panel or its strip thumbnail. Drag the photo, scroll to zoom, or use precise zoom and position sliders. Flip the image and edit its cast role. **Fit frame** restores framing; **Reset** centers the crop. Undo/redo also support Ctrl/Cmd+Z and Shift+Ctrl/Cmd+Z.
+3. Write your main title, signature subtitle, tagline and edition. Try eight layouts, six grades, three title finishes and the poster-ink mix. A smaller layout keeps hidden panel edits when you switch back.
+4. Download an exact **1920 × 1080**, **1080 × 1350**, or **1080 × 1080** PNG. **Export collection** shows all three freshly rendered formats, each with its download button. The live preview and downloads share `renderPoster`.
 
-Your files stay in memory on your device. The page needs no account or external resources.
+Sample focus rectangles are supplied metadata, and the scenic silhouette is a hand-traced outline for Velvet only. Imported photographs retain their backgrounds and have fully manual positioning; no automatic face recognition or general background-removal service is claimed. Your photos are read through local file input and never uploaded. Reloading the page clears the in-memory project.
 
-## Verify and package
+The main display alphabet, diagonal layouts, skyline, palms, coupe and seal are original drawing code. No game art, logo, character or game font is included.
 
-Run `timeout 100 node tools/verify.mjs` to check local photo imports, cropping, caption changes, and all three downloaded PNGs in Chrome. Set `CHROME_BIN` if your Chrome executable is installed in a nonstandard location. Run `timeout 100 node tools/capture.mjs` to rebuild the dossier screenshots. Use `MAKEFUN_OUTPUT_DIR=/tmp/neon-tide-output node main.ts` to copy the app and captures into the output and build the dossier.
+## Verification and dossier
 
-## Sample photographs
+- `timeout 110 node tools/verify.mjs` runs Chrome with a bounded background server. It checks six actual local-file imports, crop/history and pixel changes, title clearance, exact PNG dimensions and matching preview/export bytes, and remote requests. The report is written outside the repo under `../research/`.
+- `timeout 110 node tools/capture.mjs` recreates four app-produced screenshots. Text, crop and layout states are reached through editor controls. The last image is the real export dialog.
+- `MAKEFUN_OUTPUT_DIR=/tmp/neon-tide-output node main.ts` packages the static app and screenshots and writes the deterministic dossier with the unchanged starter library. Choose an output directory outside this repo.
 
-`boulevard.jpg` and `pier.jpg` are model-generated samples supplied by the competition kit. The other four photographs are original crops and color adjustments of fictional adults from David Beniaguev’s SFHQ-T2I demonstration sheets. Night Shift comes from the Facial Hair sheet (row 1, cell 3), Velvet from Lighting (row 5, cell 6), and Switchboard from Glasses Style (row 6, cell 10), and Insider from Lighting (row 6, cell 10). See the [source sheets](https://github.com/SelfishGene/SFHQ-T2I-dataset) and the [dataset license](https://www.kaggle.com/datasets/selfishgene/sfhq-t2i-synthetic-faces-from-text-2-image-models).
+## Asset credits
 
-The poster layout, drawn coupe and waterfront, traced sample silhouette, block display letters, and connected script subtitle are original. The silhouette treatment applies only to the bundled Velvet sample; local imports keep their full photograph. The repository's MIT license covers the app source.
+`boulevard.jpg` and `pier.jpg` are the competition starter's model-generated samples, retained unchanged. Four additional adult synthetic portraits are cropped and color-matched derivatives of David Beniaguev's SFHQ-T2I demonstration sheets, licensed MIT. The source collection is [SFHQ-T2I](https://github.com/SelfishGene/SFHQ-T2I-dataset); [Kaggle's dataset listing](https://www.kaggle.com/datasets/selfishgene/sfhq-t2i-synthetic-faces-from-text-2-image-models) identifies its MIT license.
 
-MIT License for the SFHQ-T2I sample photographs
+- Velvet: Lighting sheet, row 5, cell 6; its hand-traced source-coordinate outline is in `photo.js`.
+- Night Shift: Facial Hair sheet, row 1, cell 3.
+- Insider: Lighting sheet, row 6, cell 10.
+- Switchboard: Hair Style × Sex sheet, row 3, cell 2, crop x516–990/y1369–1765.
 
-Copyright (c) David Beniaguev
-
-Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+The image license is included in `app/samples/LICENSE.txt`. Yellowtail Regular, used for editable subtitles, is Copyright (c) 2011 Brian J. Bonislawsky DBA Astigmatic (AOETI), under Apache 2.0; its license and notice accompany the local font in `app/fonts/`. The application source is MIT licensed; see `LICENSE`.

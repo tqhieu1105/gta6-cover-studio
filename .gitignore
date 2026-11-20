@@ -1,9 +1,11 @@
-# Build products and machine-local settings
-/.cache/
+# Keep machine data and packaging products outside the entry.
+/node_modules/
 /output/
 /out/
-/node_modules/
+/.cache/
+.env
+.env.*
 *.log
-.env*
-/.makefun/local*
+*.tmp
 .DS_Store
+/.makefun/local*

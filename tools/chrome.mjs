@@ -1,137 +1,105 @@
 import { spawn } from 'node:child_process';
-import { once } from 'node:events';
-import { access, mkdtemp, readFile, rm } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { mkdtemp, readFile, rm, writeFile, mkdir, access } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
+import { tmpdir } from 'node:os';
 
 export const root = resolve(import.meta.dirname, '..');
 export const research = resolve(root, '../research');
-const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
-
-async function poll(work, description, ms = 14_000) {
-  const deadline = Date.now() + ms;
-  while (Date.now() < deadline) {
-    const result = await work();
+const pause = duration => new Promise(done => setTimeout(done, duration));
+async function retry(probe, label, timeout = 12000) {
+  const end = performance.now() + timeout;
+  do {
+    const result = await probe();
     if (result) return result;
-    await sleep(100);
-  }
-  throw Error('Timed out waiting for ' + description);
+    await pause(80);
+  } while (performance.now() < end);
+  throw new Error(`Timed out: ${label}`);
 }
-
-function background(program, args, stdout = 'ignore') {
-  return spawn('timeout', ['--kill-after=3s', '100s', program, ...args], {
-    detached: true, stdio: ['ignore', stdout, 'ignore'],
+function launch(binary, args, capture = false) {
+  return spawn('timeout', ['--kill-after=2', '115', binary, ...args], {
+    detached: true, stdio: ['ignore', capture ? 'pipe' : 'ignore', 'ignore'],
   });
 }
-
-async function stop(child) {
-  if (!child?.pid || child.exitCode !== null || child.signalCode !== null) return;
-  const ended = once(child, 'exit').catch(() => {});
+async function endProcess(child) {
+  if (!child?.pid || child.exitCode !== null) return;
   try { process.kill(-child.pid, 'SIGTERM'); } catch {}
-  await Promise.race([ended, sleep(450)]);
+  await pause(150);
   try { process.kill(-child.pid, 'SIGKILL'); } catch {}
-  await Promise.race([ended, sleep(300)]);
 }
-
 export async function withChrome(work) {
-  const profile = await mkdtemp(join(tmpdir(), 'neon-tide-cdp-'));
-  const pending = new Map();
-  const subscriptions = new Map();
-  let server;
-  let chrome;
-  let socket;
-  let sequence = 0;
-  let origin;
+  const profile = await mkdtemp(join(tmpdir(), 'neon-tide-browser-'));
+  const waiting = new Map(), listeners = new Map();
+  let server, browser, websocket, requestId = 0;
   try {
-    server = background(process.execPath, [join(root, 'serve.ts'), '--port', '0'], 'pipe');
+    server = launch(process.execPath, [join(root, 'serve.ts'), '--port', '0'], true);
     let startup = '';
-    server.stdout.on('data', chunk => {
-      startup += chunk;
-      origin = startup.match(/http:\/\/127\.0\.0\.1:\d+/)?.[0];
-    });
-    await poll(() => origin, 'local static server');
-    const bundledBinary = '/opt/google/chrome/chrome';
-    const localChrome = await access(bundledBinary).then(() => bundledBinary, () => 'google-chrome');
-    chrome = background(process.env.CHROME_BIN || localChrome, [
-      '--headless=new', '--no-sandbox', '--disable-dev-shm-usage',
-      '--disable-extensions', '--disable-component-extensions-with-background-pages',
-      '--disable-background-networking', '--no-first-run', '--no-default-browser-check',
-      '--force-device-scale-factor=1', '--hide-scrollbars',
+    server.stdout.on('data', chunk => { startup += chunk; });
+    const origin = await retry(() => startup.match(/http:\/\/127\.0\.0\.1:\d+/)?.[0], 'static server');
+    const installed = '/opt/google/chrome/chrome';
+    const binary = process.env.CHROME_BIN || await access(installed).then(() => installed, () => 'google-chrome');
+    browser = launch(binary, [
+      '--headless=new', '--no-sandbox', '--disable-dev-shm-usage', '--disable-extensions',
+      '--disable-component-extensions-with-background-pages', '--disable-background-networking',
+      '--no-first-run', '--no-default-browser-check', '--force-device-scale-factor=1', '--hide-scrollbars',
       '--remote-debugging-port=0', '--user-data-dir=' + profile, 'about:blank',
     ]);
-    const port = await poll(async () => {
-      const file = await readFile(join(profile, 'DevToolsActivePort'), 'utf8').catch(() => '');
-      return Number(file.split('\n')[0]) || null;
-    }, 'Chrome debug socket');
-    const page = await poll(async () => {
+    await mkdir(research, { recursive: true });
+    await writeFile(join(research, 'browser-runtime.json'), JSON.stringify({ serverPid: server.pid, chromePid: browser.pid, boundedSeconds: 115 }));
+    const port = await retry(async () => {
+      const text = await readFile(join(profile, 'DevToolsActivePort'), 'utf8').catch(() => '');
+      return Number(text.split('\n')[0]);
+    }, 'Chrome debugging port');
+    const target = await retry(async () => {
       try {
-        const listing = await fetch('http://127.0.0.1:' + port + '/json/list', { signal: AbortSignal.timeout(1300) });
-        return (await listing.json()).find(target => target.type === 'page');
+        const response = await fetch(`http://127.0.0.1:${port}/json/list`, { signal: AbortSignal.timeout(1500) });
+        return (await response.json()).find(item => item.type === 'page');
       } catch { return null; }
     }, 'Chrome page');
-
-    socket = new WebSocket(page.webSocketDebuggerUrl);
-    socket.addEventListener('message', ({ data }) => {
-      const message = JSON.parse(data);
-      if (message.id) {
-        const task = pending.get(message.id);
-        if (!task) return;
-        pending.delete(message.id);
-        clearTimeout(task.timer);
-        if (message.error) task.reject(Error(message.error.message));
-        else task.resolve(message.result);
-      } else {
-        for (const callback of subscriptions.get(message.method) ?? []) callback(message.params);
-      }
+    websocket = new WebSocket(target.webSocketDebuggerUrl);
+    await new Promise((done, fail) => {
+      const timer = setTimeout(() => fail(Error('Chrome WebSocket did not open')), 6000);
+      websocket.addEventListener('open', () => { clearTimeout(timer); done(); }, { once: true });
+      websocket.addEventListener('error', () => { clearTimeout(timer); fail(Error('Chrome WebSocket failed')); }, { once: true });
     });
-    await new Promise((resolve, reject) => {
-      const deadline = setTimeout(() => reject(Error('Chrome socket did not open')), 6500);
-      socket.addEventListener('open', () => { clearTimeout(deadline); resolve(); }, { once: true });
-      socket.addEventListener('error', () => { clearTimeout(deadline); reject(Error('Chrome socket failed')); }, { once: true });
+    websocket.addEventListener('message', event => {
+      const reply = JSON.parse(event.data);
+      if (reply.id) {
+        const pending = waiting.get(reply.id);
+        if (!pending) return;
+        waiting.delete(reply.id); clearTimeout(pending.timer);
+        reply.error ? pending.fail(Error(reply.error.message)) : pending.done(reply.result);
+      } else for (const listener of listeners.get(reply.method) || []) listener(reply.params);
     });
-
-    const call = (method, params = {}) => new Promise((resolve, reject) => {
-      const id = ++sequence;
-      const timer = setTimeout(() => {
-        pending.delete(id);
-        reject(Error('Chrome command timed out: ' + method));
-      }, 20_000);
-      pending.set(id, { resolve, reject, timer });
-      socket.send(JSON.stringify({ id, method, params }));
+    const call = (method, params = {}) => new Promise((done, fail) => {
+      const id = ++requestId;
+      const timer = setTimeout(() => { waiting.delete(id); fail(Error(`Chrome request expired: ${method}`)); }, 18000);
+      waiting.set(id, { done, fail, timer });
+      websocket.send(JSON.stringify({ id, method, params }));
     });
     const evaluate = async expression => {
-      const reply = await call('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true });
-      if (reply.exceptionDetails) {
-        const details = reply.exceptionDetails;
-        throw Error(details.exception?.description ?? details.text);
-      }
-      return reply.result.value;
+      const result = await call('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true });
+      if (result.exceptionDetails) throw Error(result.exceptionDetails.exception?.description || result.exceptionDetails.text);
+      return result.result.value;
     };
-    const on = (method, callback) => {
-      if (!subscriptions.has(method)) subscriptions.set(method, []);
-      subscriptions.get(method).push(callback);
+    const on = (event, callback) => {
+      if (!listeners.has(event)) listeners.set(event, []);
+      listeners.get(event).push(callback);
     };
-    const until = (expression, ms) => poll(() => evaluate(expression), expression.slice(0, 115), ms);
-    const viewport = (width, height) => call('Emulation.setDeviceMetricsOverride', {
-      width, height, deviceScaleFactor: 1, mobile: false,
-    });
-    const open = async query => {
-      const url = new URL('/?' + new URLSearchParams(query), origin).href;
+    const until = (expression, timeout) => retry(() => evaluate(expression), expression.slice(0, 100), timeout);
+    const viewport = (width, height) => call('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: false });
+    const open = async params => {
+      const url = `${origin}/?${new URLSearchParams(params)}`;
       await call('Page.navigate', { url });
-      await until(`location.href === ${JSON.stringify(url)} && document.documentElement.dataset.ready === 'true'`);
-      await evaluate('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
+      await until(`location.href === ${JSON.stringify(url)} && document.documentElement?.dataset.ready === 'true'`);
+      await evaluate('document.fonts.ready');
+      await evaluate('new Promise(done => requestAnimationFrame(() => requestAnimationFrame(done)))');
     };
-    await call('Page.enable');
-    await call('Runtime.enable');
-    await call('Network.enable');
-    await work({ call, evaluate, on, until, viewport, open, origin });
+    await call('Page.enable'); await call('Runtime.enable'); await call('Network.enable');
+    return await work({ call, evaluate, on, until, viewport, open, origin });
   } finally {
-    for (const item of pending.values()) {
-      clearTimeout(item.timer);
-      item.reject(Error('Chrome closed'));
-    }
-    if (socket?.readyState === WebSocket.OPEN) socket.close();
-    await Promise.all([stop(chrome), stop(server)]);
-    await rm(profile, { recursive: true, force: true, maxRetries: 2 });
+    if (websocket?.readyState === WebSocket.OPEN) websocket.close();
+    for (const pending of waiting.values()) clearTimeout(pending.timer);
+    await Promise.allSettled([endProcess(browser), endProcess(server)]);
+    await rm(profile, { recursive: true, force: true, maxRetries: 3 });
   }
 }

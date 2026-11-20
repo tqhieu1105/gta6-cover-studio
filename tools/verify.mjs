@@ -1,138 +1,116 @@
-import { deepStrictEqual, ok, strictEqual } from 'node:assert';
-import { mkdir, readFile, readdir, rename, writeFile } from 'node:fs/promises';
+import assert from 'node:assert/strict';
+import { readFile, readdir, mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { research, root, withChrome } from './chrome.mjs';
+import { createHash } from 'node:crypto';
+import { root, research, withChrome } from './chrome.mjs';
 
-const expected = { landscape: [1920, 1080], portrait: [1080, 1350], square: [1080, 1080] };
-const downloadFolder = join(research, 'browser-downloads-' + process.pid);
-const samples = ['boulevard.jpg', 'pier.jpg', 'night-shift.jpg', 'switchboard.jpg'];
-const report = { checks: [], png: {}, exceptions: [], remoteRequests: [] };
-
-function equals(name, actual, wanted) {
-  deepStrictEqual(actual, wanted, name);
-  report.checks.push(name);
-}
-
-await mkdir(downloadFolder, { recursive: true });
-await withChrome(async ({ call, evaluate, on, until, open, viewport, origin }) => {
-  on('Runtime.exceptionThrown', ({ exceptionDetails }) => report.exceptions.push(exceptionDetails.text));
-  on('Runtime.consoleAPICalled', ({ type, args }) => {
-    if (type === 'error') report.exceptions.push(args.map(value => value.description ?? value.value ?? '').join(' '));
+const report = { checks: [], exports: {}, errors: [], remoteRequests: [] };
+const formats = { landscape: [1920, 1080], portrait: [1080, 1350], square: [1080, 1080] };
+const photoNames = ['velvet', 'night-shift', 'insider', 'boulevard', 'switchboard', 'pier'];
+const downloads = join(research, `downloads-${process.pid}`);
+await mkdir(downloads, { recursive: true });
+function equal(label, actual, expected) { assert.deepEqual(actual, expected, label); report.checks.push(label); }
+function truth(label, actual) { assert.ok(actual, label); report.checks.push(label); }
+const hash = bytes => createHash('sha256').update(bytes).digest('hex');
+const fileHashes = await Promise.all(photoNames.map(name => readFile(join(root, 'app/samples', name + '.jpg')).then(hash)));
+equal('six different sample image files', new Set(fileHashes).size, 6);
+await withChrome(async ({ call, evaluate, open, viewport, until, on, origin }) => {
+  on('Runtime.exceptionThrown', e => report.errors.push(e.exceptionDetails.exception?.description || e.exceptionDetails.text));
+  on('Runtime.consoleAPICalled', e => { if (e.type === 'error') report.errors.push(e.args.map(a => a.description || a.value).join(' ')); });
+  on('Network.requestWillBeSent', ({ request }) => {
+    if (!request.url.startsWith(origin + '/') && !/^(data|blob):/.test(request.url)) report.remoteRequests.push(request.url);
   });
-  on('Network.requestWillBeSent', ({ request: { url } }) => {
-    if (!url.startsWith(origin + '/') && !url.startsWith('blob:') && !url.startsWith('data:')) report.remoteRequests.push(url);
-  });
-
-  const expression = 'window.coverStudio.inspect()';
-  const inspect = () => evaluate(expression);
-  const element = id => 'document.getElementById(' + JSON.stringify(id) + ')';
-  const click = selector => evaluate('document.querySelector(' + JSON.stringify(selector) + ').click()');
-  const input = (id, next) => evaluate(`(() => {
-    const control = ${element(id)};
-    control.value = ${JSON.stringify(next)};
-    control.dispatchEvent(new Event('input', { bubbles: true }));
-    control.dispatchEvent(new Event('change', { bubbles: true }));
+  const inspect = () => evaluate('coverStudio.inspect()');
+  const click = selector => evaluate(`document.querySelector(${JSON.stringify(selector)}).click()`);
+  const fill = (id, value) => evaluate(`(() => {
+    const el=document.getElementById(${JSON.stringify(id)});el.value=${JSON.stringify(String(value))};
+    el.dispatchEvent(new Event('input',{bubbles:true}));el.dispatchEvent(new Event('change',{bubbles:true}));
   })()`);
-
-  await viewport(1280, 896);
-  await open({ qa: '1' });
-  const starter = await inspect();
-  equals('six sample photos available', starter.photoCount, 6);
-  equals('five different photos in the default collage', starter.state.panels.map(panel => panel.photo), [0, 1, 2, 3, 4]);
-  equals('five panel previews rendered', await evaluate('document.querySelectorAll("#panel-picker button").length'), 5);
-  equals('three visible PNG buttons', await evaluate(`[...document.querySelectorAll('[data-export]')].every(button => {
-    const rect = button.getBoundingClientRect();
-    return rect.height >= 32 && rect.bottom <= innerHeight && rect.top >= 0;
-  })`), true);
-
-  const { root: documentNode } = await call('DOM.getDocument');
-  const { nodeId } = await call('DOM.querySelector', { nodeId: documentNode.nodeId, selector: '#photo-input' });
-  await call('DOM.setFileInputFiles', { nodeId, files: samples.map(name => join(root, 'app/samples', name)) });
-  await until(expression + '.photoCount === 10');
-  equals('native file picker imports all four local photos', (await inspect()).photoCount, 10);
-  equals('new cast initially fills the panels', (await inspect()).state.panels.map(panel => panel.photo), [6, 7, 8, 9, 6]);
-
+  const frame = () => evaluate('new Promise(done => requestAnimationFrame(() => requestAnimationFrame(done)))');
+  const digest = () => evaluate(`(async()=>{
+    const bytes=await new Promise(done=>document.getElementById('poster').toBlob(async blob=>done(await blob.arrayBuffer())));
+    return Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',bytes)),b=>b.toString(16).padStart(2,'0')).join('');
+  })()`);
+  await viewport(1280, 896); await open({ qa: '1' });
+  equal('six demo photos loaded', (await inspect()).photoCount, 6);
+  equal('six unique default panel assignments', (await inspect()).state.panels.map(p => p.photo), [0, 1, 2, 3, 4, 5]);
+  equal('six selectable panel previews', await evaluate("document.querySelectorAll('#panel-picker button').length"), 6);
+  truth('three PNG buttons visible', await evaluate(`document.querySelectorAll('[data-export]').length===3 && [...document.querySelectorAll('[data-export]')].every(b=>{const r=b.getBoundingClientRect();return r.height>=32&&r.bottom<=innerHeight&&r.top>=0})`));
+  for (const format of Object.keys(formats)) {
+    await click(`[data-format="${format}"]`); await frame();
+    const { geometry } = await inspect();
+    equal(`${format} canvas dimensions`, await evaluate('[poster.width,poster.height]'), formats[format]);
+    truth(`${format} has six face metadata boxes`, geometry.faces.every(Boolean) && geometry.faces.length === 6);
+    truth(`${format} faces clear of title`, geometry.faces.every(face =>
+      face.x + face.w <= geometry.title.x || face.x >= geometry.title.x + geometry.title.w ||
+      face.y + face.h <= geometry.title.y || face.y >= geometry.title.y + geometry.title.h));
+    truth(`${format} short title is at least 16 percent tall`, geometry.title.h / geometry.height >= .16 - 1e-9);
+  }
+  await click('[data-format="landscape"]'); await frame();
+  const { root: dom } = await call('DOM.getDocument');
+  const { nodeId } = await call('DOM.querySelector', { nodeId: dom.nodeId, selector: '#photo-input' });
+  await call('DOM.setFileInputFiles', { nodeId, files: photoNames.map(name => join(root, 'app/samples', name + '.jpg')) });
+  await until('coverStudio.inspect().photoCount === 12');
+  equal('real six-file input imports the photos', (await inspect()).photoCount, 12);
+  equal('new photos fill all six panels', (await inspect()).state.panels.map(p => p.photo), [6, 7, 8, 9, 10, 11]);
+  await frame();
+  truth('generic imported photos draw without sample silhouette', await evaluate('coverStudio.exportCanvas("landscape").width===1920'));
   await click('#auto-fill');
-  equals('autofill action assigns five distinct photos', (await inspect()).state.panels.map(panel => panel.photo), [0, 1, 2, 3, 4]);
+  equal('auto-fill restores six distinct library photos', (await inspect()).state.panels.map(p => p.photo), [0, 1, 2, 3, 4, 5]);
   await click('#panel-picker button:nth-child(3)');
-  equals('panel picker selects third panel', (await inspect()).selected, 2);
-  await input('assigned-photo', '7');
-  await input('pan-y', '.54');
-  await input('zoom', '1.7');
-  await click('#flip');
-  await input('role', 'THE INFORMANT');
-  const edited = (await inspect()).state.panels[2];
-  equals('photo, crop, flip and role are independent panel state', edited, {
-    role: 'THE INFORMANT', x: 0, y: .54, photo: 7, zoom: 1.7, flip: true,
-  });
-  equals('reframing keeps the lead separate', (await inspect()).state.panels[0].photo, 0);
-  await click('#undo');
-  equals('undo restores previous role label', (await inspect()).state.panels[2].role, starter.state.panels[2].role);
-  await click('#redo');
-  equals('redo restores role edit', (await inspect()).state.panels[2].role, edited.role);
-  await input('layout', 'double');
-  equals('two panel layout shows only two panels', (await inspect()).state.panels.length, 2);
-  await input('layout', 'premiere');
-  equals('a smaller layout preserves the hidden panel edit', (await inspect()).state.panels[2], edited);
-
-  const titleChanged = await evaluate(`(() => {
-    const fragment = () => {
-      const poster = window.coverStudio.exportCanvas('landscape');
-      const region = document.createElement('canvas');
-      region.width = 120;
-      region.height = 48;
-      region.getContext('2d').drawImage(poster, 220, 755, 1480, 170, 0, 0, 120, 48);
-      return region.toDataURL();
-    };
-    const before = fragment();
-    const title = document.querySelector('#title');
-    title.value = 'CORAL AFTER DARK';
-    title.dispatchEvent(new Event('input', { bubbles: true }));
-    title.dispatchEvent(new Event('change', { bubbles: true }));
-    return before !== fragment();
-  })()`);
-  equals('caption edit changes the actual export pixels', titleChanged, true);
-
-  const layouts = await evaluate('[...document.querySelector("#layout").options].map(option => option.value)');
-  strictEqual(layouts.length, 8);
-  for (const layout of layouts) {
-    await input('layout', layout);
-    for (const [format, dimensions] of Object.entries(expected)) {
-      const sample = await evaluate(`(() => {
-        const result = coverStudio.exportCanvas(${JSON.stringify(format)});
-        const ctx = result.getContext('2d');
-        const points = [[.02,.02], [.18,.18], [.49,.28], [.75,.54], [.6,.79]];
-        const pixels = points.map(([x,y]) => [...ctx.getImageData(Math.floor(result.width*x), Math.floor(result.height*y), 1, 1).data]);
-        return { dimensions: [result.width, result.height], opaque: pixels.every(pixel => pixel[3] === 255), colors: new Set(pixels.map(pixel => pixel.join())).size };
-      })()`);
-      equals(layout + ' ' + format + ' dimensions', sample.dimensions, dimensions);
-      ok(sample.opaque && sample.colors > 2, layout + ' ' + format + ' renders actual art');
-      report.checks.push(layout + ' ' + format + ' has distinct opaque poster pixels');
-    }
-  }
-
-  await open({ qa: '1' });
-  await call('Browser.setDownloadBehavior', { behavior: 'allow', downloadPath: downloadFolder });
-  for (const [format, dimensions] of Object.entries(expected)) {
+  await fill('assigned-photo', '7'); await fill('zoom', '1.7'); await fill('pan-x', '.2'); await fill('pan-y', '.3');
+  await click('#flip'); await fill('role', 'THE INFORMANT');
+  const crop = (await inspect()).state.panels[2];
+  equal('independent photo assignment and crop controls', [crop.photo,crop.zoom,crop.x,crop.y,crop.flip,crop.role,crop.autoFrame], [7,1.7,.2,.3,true,'THE INFORMANT',false]);
+  await click('#undo'); equal('undo caption change', (await inspect()).state.panels[2].role, 'THE INSIDER');
+  await click('#redo'); equal('redo caption change', (await inspect()).state.panels[2].role, 'THE INFORMANT');
+  await frame();
+  const originalPixels = await digest();
+  await fill('title', 'AFTER THE TIDE'); await frame();
+  truth('editing title changes exported pixels', originalPixels !== await digest());
+  await click('#undo'); await frame(); equal('undo restores original canvas pixels', await digest(), originalPixels);
+  await click('#redo'); await frame();
+  const bounds = await evaluate(`(()=>{const r=poster.getBoundingClientRect(),g=coverStudio.inspect().geometry,p=g.panels[2];return {x:r.x+(p.x+p.w*.45)/g.width*r.width,y:r.y+(p.y+p.h*.4)/g.height*r.height}})()`);
+  const beforeDrag = (await inspect()).state.panels[2];
+  await call('Input.dispatchMouseEvent', { type: 'mousePressed', x: bounds.x, y: bounds.y, button: 'left', clickCount: 1 });
+  await call('Input.dispatchMouseEvent', { type: 'mouseMoved', x: bounds.x + 25, y: bounds.y + 20, button: 'left', buttons: 1 });
+  await call('Input.dispatchMouseEvent', { type: 'mouseReleased', x: bounds.x + 25, y: bounds.y + 20, button: 'left', clickCount: 1 });
+  const afterDrag = (await inspect()).state.panels[2];
+  truth('pointer drag changes photo position', beforeDrag.x !== afterDrag.x || beforeDrag.y !== afterDrag.y);
+  const beforeWheel = afterDrag.zoom;
+  await call('Input.dispatchMouseEvent', { type: 'mouseWheel', x: bounds.x, y: bounds.y, deltaX: 0, deltaY: -100 });
+  await until(`coverStudio.inspect().state.panels[2].zoom > ${beforeWheel}`);
+  truth('native wheel zoom changes selected panel', (await inspect()).state.panels[2].zoom > beforeWheel);
+  await evaluate('new Promise(done=>setTimeout(done,260))');
+  await click('#open-exports');
+  truth('real export tray opens', await evaluate('document.getElementById("export-tray").open'));
+  equal('tray has three freshly rendered formats', await evaluate('[...document.querySelectorAll("#export-cards canvas")].map(c=>[c.width,c.height])'), Object.values(formats));
+  await click('#close-exports');
+  await call('Browser.setDownloadBehavior', { behavior: 'allow', downloadPath: downloads });
+  for (const [format, dimensions] of Object.entries(formats)) {
+    await click(`[data-format="${format}"]`); await frame();
+    const data = await evaluate(`coverStudio.exportCanvas('${format}').toDataURL('image/png').split(',')[1]`);
+    const expected = Buffer.from(data, 'base64');
+    equal(`${format} preview matches export renderer`, await evaluate(`poster.toDataURL()===coverStudio.exportCanvas('${format}').toDataURL()`), true);
     await click(`[data-export="${format}"]`);
-    const relative = 'neon-tide-' + format + '.png';
-    const file = join(downloadFolder, relative);
-    let png;
-    const end = Date.now() + 9000;
-    while (!png && Date.now() < end) {
-      if ((await readdir(downloadFolder)).includes(relative)) png = await readFile(file).catch(() => null);
-      if (!png) await new Promise(resolve => setTimeout(resolve, 100));
+    const filename = `after-the-tide-${format}.png`;
+    let bytes;
+    for (let attempt = 0; attempt < 60; attempt++) {
+      bytes = await readFile(join(downloads, filename)).catch(() => null);
+      if (bytes) break;
+      await new Promise(done => setTimeout(done, 80));
     }
-    ok(png, 'PNG clicked in editor was saved: ' + format);
-    equals(format + ' PNG signature', png.subarray(0, 8).toString('hex'), '89504e470d0a1a0a');
-    equals(format + ' PNG IHDR size', [png.readUInt32BE(16), png.readUInt32BE(20)], dimensions);
-    equals(format + ' PNG ends at IEND', png.subarray(-8, -4).toString('ascii'), 'IEND');
-    report.png[format] = dimensions;
-    await rename(file, join(research, 'neon-tide-' + format + '.png'));
+    truth(`${format} PNG downloaded`, bytes && bytes.length > 10000);
+    equal(`${format} downloaded PNG signature`, bytes.subarray(0, 8).toString('hex'), '89504e470d0a1a0a');
+    equal(`${format} downloaded PNG exact dimensions`, [bytes.readUInt32BE(16), bytes.readUInt32BE(20)], dimensions);
+    equal(`${format} download pixels match preview`, hash(bytes), hash(expected));
+    report.exports[format] = { dimensions, bytes: bytes.length, sha256: hash(bytes) };
   }
+  // A layout switch preserves edits hidden by layouts with fewer panels.
+  await fill('layout', 'single'); equal('one-panel layout works', (await inspect()).state.panels.length, 1);
+  await fill('layout', 'premiere'); equal('returning to six panels restores hidden role', (await inspect()).state.panels[2].role, 'THE INFORMANT');
+  equal('no JavaScript exceptions', report.errors, []);
+  equal('no remote resources', report.remoteRequests, []);
 });
-
-equals('no browser exceptions or console errors', report.exceptions, []);
-equals('no remote requests', report.remoteRequests, []);
-await writeFile(join(research, 'recorded-verification.json'), JSON.stringify(report, null, 2) + '\n');
-console.log(`${report.checks.length} checks passed, 3 exact PNG exports, 0 exceptions, 0 remote requests.`);
+await writeFile(join(research, 'verification-current.json'), JSON.stringify(report, null, 2));
+console.log(`${report.checks.length} checks passed; 3 exact PNG downloads; ${report.errors.length} errors; ${report.remoteRequests.length} remote requests`);
