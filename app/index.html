@@ -1,62 +1,97 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta name="theme-color" content="#171622">
-  <meta name="description" content="Your crew. Your cover. Create an original neon crime poster from local photos, then export a full-resolution PNG.">
-  <title>Neon Tide — Cover Studio</title>
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect width='40' height='40' rx='9' fill='%23f68baf'/%3E%3Cpath d='M11 29V11h5l8 12V11h5v18h-5l-8-12v12z' fill='%23171622'/%3E%3C/svg%3E">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>Neon Tide | Cover Studio</title>
   <link rel="stylesheet" href="./style.css">
+  <script type="module" src="./src/studio.js"></script>
 </head>
 <body>
-  <header class="masthead">
-    <a class="brand" href="./" aria-label="Neon Tide home"><span class="brand-mark">N<span>↗</span></span><span>NEON TIDE<small>COVER STUDIO</small></span></a>
-    <div class="project-label"><span class="status-dot"></span><span id="project-name">Neon Tide / Midnight edition</span><span class="local-badge">LOCAL PROJECT</span></div>
-    <div class="header-actions"><button id="undo" class="icon-button" title="Undo (Ctrl+Z)" aria-label="Undo">↶</button><button id="redo" class="icon-button" title="Redo (Ctrl+Shift+Z)" aria-label="Redo">↷</button><span class="header-divider"></span><span class="privacy"><span>◈</span> Photos stay on your device</span></div>
+  <header class="topbar">
+    <a class="brand" href="./" aria-label="Neon Tide home">
+      <span class="brand-mark" aria-hidden="true">N</span>
+      <span><strong>NEON TIDE</strong><small>Cover Studio</small></span>
+    </a>
+    <div class="history" aria-label="Edit history">
+      <button id="undo" type="button" aria-label="Undo"><span aria-hidden="true">↶</span> Undo</button>
+      <button id="redo" type="button" aria-label="Redo"><span aria-hidden="true">↷</span> Redo</button>
+    </div>
+    <span class="private"><i></i> Photos stay on this device</span>
   </header>
-  <main class="workspace">
-    <aside class="sidebar library-sidebar" aria-label="Cover design controls">
-      <div class="section-heading"><span class="step">01</span><h2>Build your cast</h2><span id="photo-count" class="count">5 photos</span></div>
-      <label class="upload-zone" id="drop-zone" for="photo-files"><span class="upload-icon">↥</span><strong>Add your photos</strong><span>Drop files or browse · JPG, PNG, WebP</span><input id="photo-files" type="file" accept="image/*" multiple></label>
-      <div id="photo-library" class="photo-library" aria-label="Local photo library"></div>
-      <button id="fill-panels" class="secondary full"><span>▧</span> Auto-fill the cast <span class="button-arrow">↗</span></button>
-      <p class="microcopy">Start with the sample cast, or bring your own.</p>
-      <section class="control-section">
-        <div class="section-heading"><span class="step">02</span><h2>Write your story</h2></div>
-        <label for="title-input">Cover title <span>UP TO TWO LINES</span></label><textarea id="title-input" maxlength="28" rows="2" spellcheck="false">NEON TIDE</textarea>
-        <label for="subtitle-input">Subtitle</label><input id="subtitle-input" maxlength="38" value="one last summer">
-        <label for="tagline-input">Tagline</label><input id="tagline-input" maxlength="56" value="GOOD PEOPLE. BAD DECISIONS.">
-        <div class="input-pair"><div><label for="edition-input">Edition</label><input id="edition-input" maxlength="20" value="MIDNIGHT EDITION"></div><div><label for="year-input">Year</label><input id="year-input" maxlength="4" value="2026"></div></div>
+
+  <main class="workbench" id="workbench">
+    <aside class="deck content" aria-label="Poster content">
+      <section class="group">
+        <div class="group-heading"><h2>Photo library</h2><span id="photo-count"></span></div>
+        <label class="import" for="photo-input" id="drop-zone">
+          <span aria-hidden="true">＋</span> Add photos
+          <input id="photo-input" type="file" accept="image/*" multiple>
+        </label>
+        <div id="library" class="library" aria-label="Available photos"></div>
+        <button id="auto-fill" class="quiet full" type="button">Fill panels from library <span aria-hidden="true">↗</span></button>
       </section>
-      <section class="control-section layouts-section"><div class="section-heading"><span class="step">03</span><h2>Set the scene</h2></div><div id="layout-grid" class="layout-grid" aria-label="Poster layouts"></div></section>
-      <footer class="sidebar-footer">ORIGINAL ART DIRECTION. YOUR STORY.</footer>
+      <section class="group text-controls">
+        <div class="group-heading"><h2>Caption</h2></div>
+        <label>Title<input id="title" type="text" maxlength="36" autocomplete="off" spellcheck="false"></label>
+        <label>Subtitle<input id="subtitle" type="text" maxlength="54" autocomplete="off"></label>
+        <label>Tagline<input id="tagline" type="text" maxlength="60" autocomplete="off"></label>
+        <label>Edition<input id="edition" type="text" maxlength="18" autocomplete="off"></label>
+      </section>
     </aside>
-    <section class="preview-column" aria-label="Live cover preview">
-      <div class="preview-toolbar"><div><span class="eyebrow">THE CUT</span><h1>Your crew. Your cover.</h1></div><div class="live-indicator"><span class="status-dot"></span>LIVE PREVIEW</div></div>
-      <div class="format-toolbar" role="group" aria-label="Poster size"><button data-format="square"><span class="format-icon square"></span>Square <small>1080 × 1080</small></button><button data-format="portrait" class="active"><span class="format-icon portrait"></span>Portrait <small>1080 × 1350</small></button><button data-format="landscape"><span class="format-icon landscape"></span>Wide <small>1920 × 1080</small></button></div>
-      <div id="preview-stage" class="preview-stage"><div class="stage-halo"></div><div class="poster-wrap" id="poster-wrap"><canvas id="poster" width="1080" height="1350" aria-label="Your original multi-panel cover; click a panel to reframe it"></canvas><svg id="selection-overlay" aria-hidden="true"><polygon id="selection-polygon"></polygon></svg></div><span class="stage-corner corner-tl"></span><span class="stage-corner corner-br"></span></div>
-      <div class="preview-caption"><span><span class="status-dot"></span> <strong id="canvas-resolution">1080 × 1350</strong> · PNG, full resolution</span><span>Click a panel · drag to reframe · scroll to zoom</span></div>
-      <div class="filmstrip-heading"><span>YOUR SCENES</span><span id="scene-count">6 panels · 5 cast photos</span></div><div id="filmstrip" class="filmstrip" aria-label="Select a panel"></div>
+
+    <section class="stage" id="stage" aria-label="Live poster preview">
+      <div class="stage-header">
+        <div class="stage-title"><span>WORKSPACE</span><h1>Live cover</h1></div>
+        <div id="format-picker" class="segments" aria-label="Preview size"></div>
+      </div>
+      <div id="preview-area" class="preview-area">
+        <div class="preview-frame" id="preview-frame">
+          <canvas id="poster" aria-label="Your poster preview"></canvas>
+          <svg id="selection" class="selection" aria-hidden="true"><polygon id="selection-border"></polygon></svg>
+        </div>
+      </div>
+      <div class="stage-help"><span>Drag a panel to move its photo · Scroll to zoom</span><span id="preview-dimensions"></span></div>
+      <nav id="panel-picker" class="panel-picker" aria-label="Select a photo panel"></nav>
     </section>
-    <aside class="sidebar inspector" aria-label="Selected panel and export">
-      <div class="inspector-heading"><span class="eyebrow">IN THE FRAME</span><h2>Make it yours.</h2></div>
-      <div class="selected-card"><span class="selected-index" id="selected-number">02</span><div><strong id="selected-name">The Driver</strong><span>SELECTED PANEL</span></div><span class="selection-dot"></span></div>
-      <label for="panel-photo">Photo in this panel</label><select id="panel-photo"></select>
-      <label for="role-input">Role label</label><input id="role-input" maxlength="22" value="THE DRIVER">
-      <div class="range-heading"><label for="zoom-range">Zoom</label><output id="zoom-value">100%</output></div><input id="zoom-range" type="range" min="1" max="3" step="0.01" value="1">
-      <div class="range-heading"><label for="crop-x">Horizontal position</label><output id="crop-x-value">0</output></div><input id="crop-x" type="range" min="-1" max="1" step="0.01" value="0">
-      <div class="range-heading"><label for="crop-y">Vertical position</label><output id="crop-y-value">0</output></div><input id="crop-y" type="range" min="-1" max="1" step="0.01" value="0">
-      <div class="crop-buttons"><button id="center-crop">◎ Center</button><button id="flip-photo">⇆ Flip</button><button id="reset-crop" title="Reset crop">↺</button></div>
-      <section class="control-section"><div class="section-heading"><h2>The atmosphere</h2><span id="grade-name" class="count">Vice sunset</span></div><div id="grade-list" class="grade-list" aria-label="Color grade"></div><div class="range-heading"><label for="grade-strength">Grade intensity</label><output id="grade-value">72%</output></div><input id="grade-strength" type="range" min="0" max="100" value="72">
-      <label class="toggle-row" for="ink-toggle"><span>Poster ink <small>Richer shadows &amp; color</small></span><input id="ink-toggle" type="checkbox" checked><i></i></label>
-      <label class="toggle-row" for="palms-toggle"><span>Coastal silhouettes</span><input id="palms-toggle" type="checkbox" checked><i></i></label>
-      <label class="toggle-row" for="frame-toggle"><span>Collector's frame</span><input id="frame-toggle" type="checkbox" checked><i></i></label></section>
-      <div class="export-panel"><span class="eyebrow">READY WHEN YOU ARE</span><button id="export-current" class="primary full">Export PNG <span>↓</span></button><p id="export-hint">Portrait · 1080 × 1350 · No watermark</p><div class="quick-exports"><button data-export="square" title="Export 1080 × 1080 PNG">Square ↓</button><button data-export="portrait" title="Export 1080 × 1350 PNG">Portrait ↓</button><button data-export="landscape" title="Export 1920 × 1080 PNG">Wide ↓</button></div></div>
+
+    <aside class="deck inspector" aria-label="Poster settings">
+      <section class="group">
+        <div class="group-heading"><h2>Selected panel</h2><span id="panel-number"></span></div>
+        <div class="panel-source">
+          <canvas id="panel-tile" width="112" height="80" aria-hidden="true"></canvas>
+          <label>Assigned photo<select id="assigned-photo"></select></label>
+        </div>
+        <label>Role label<input id="role" type="text" maxlength="20" autocomplete="off"></label>
+        <div class="sliders">
+          <label for="zoom"><span>Zoom <output id="zoom-value"></output></span><input type="range" id="zoom" min="1" max="3" step=".01"></label>
+          <label for="pan-x"><span>Horizontal <output id="x-value"></output></span><input type="range" id="pan-x" min="-1" max="1" step=".01"></label>
+          <label for="pan-y"><span>Vertical <output id="y-value"></output></span><input type="range" id="pan-y" min="-1" max="1" step=".01"></label>
+        </div>
+        <div class="button-row">
+          <button id="flip" type="button">Flip</button>
+          <button id="center" type="button">Center</button>
+          <button id="reset-crop" type="button">Reset</button>
+        </div>
+      </section>
+      <section class="group look">
+        <div class="group-heading"><h2>Poster look</h2></div>
+        <div class="look-grid">
+          <label>Layout<select id="layout"></select></label>
+          <label>Title finish<select id="finish"><option value="chrome">Chrome</option><option value="neon">Neon</option><option value="paper">Paper</option></select></label>
+        </div>
+        <div class="grade-label"><span>Color grade</span><output id="grade-label"></output></div>
+        <div class="grades" id="grades" aria-label="Color grade presets"></div>
+        <label class="grade-amount" for="strength"><span>Intensity <output id="strength-value"></output></span><input type="range" id="strength" min="0" max="1" step=".01"></label>
+        <label class="check"><input id="ink" type="checkbox"> Extra contrast</label>
+      </section>
+      <section class="group exports">
+        <div class="group-heading"><h2>Export PNG</h2></div>
+        <div id="export-sizes" class="export-sizes"></div>
+      </section>
     </aside>
   </main>
-  <div id="toast" role="status" aria-live="polite"></div>
-  <dialog id="help-dialog"><h2>Your photos are the story.</h2><p>Add one photo or a whole cast. Auto-fill spreads your photos across the panels. Select any panel, drag its image to reframe, and edit its role. Write your title, pick a size, and export your PNG.</p><button id="close-help">Got it</button></dialog>
-  <script type="module" src="./src/studio.js"></script>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
 </body>
 </html>
