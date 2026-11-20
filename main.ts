@@ -1,10 +1,16 @@
 import { cpSync, mkdirSync, writeFileSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { join, relative, resolve, sep } from 'node:path';
 import { buildDossier } from './vendor/makefun-app.ts';
 
 const outputRoot = resolve(process.env.MAKEFUN_OUTPUT_DIR || '/output');
 const inputRoot = import.meta.dirname;
 const folders = ['app', 'screenshots'];
+for (const name of folders) {
+  const location = relative(inputRoot, outputRoot);
+  if (!location || location === name || location.startsWith(name + sep)) {
+    throw Error('Set MAKEFUN_OUTPUT_DIR outside the source app and screenshots.');
+  }
+}
 
 mkdirSync(outputRoot, { recursive: true });
 for (const name of folders) {

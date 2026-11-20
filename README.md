@@ -10,14 +10,14 @@ Serve the `app/` directory with any static server, or run `node serve.ts` and op
 
 - Drop one or more photos onto **Add photos**. New photos fill the panels as soon as they load. You can also fill the panels from the whole library or click a thumbnail to assign it to the selected panel.
 - Click a panel and drag inside it to position the photo. Scroll or use the zoom slider to get closer. The inspector lets you flip the photo, set its crop precisely, and write a role label.
-- Edit the title, subtitle, tagline, and edition alongside the preview. Try eight layouts, six color grades, and three title finishes. Undo and redo keep track of changes.
+- Edit the title, subtitle, tagline, and edition alongside the preview. Try eight layouts, six color grades, and three title finishes. Undo and redo keep track of changes. Switching to a smaller layout keeps the hidden panel edits for when you switch back.
 - Export directly as a **1920 × 1080**, **1080 × 1350**, or **1080 × 1080** PNG. The preview and all three downloads use the same drawing code.
 
 Your files stay in memory on your device. The page needs no account or external resources.
 
 ## Verify and package
 
-Run `timeout 100 node tools/verify.mjs` to check local photo imports, cropping, caption changes, and all three downloaded PNGs in Chrome. Run `timeout 100 node tools/capture.mjs` to rebuild the dossier screenshots. Use `MAKEFUN_OUTPUT_DIR=/tmp/neon-tide-output node main.ts` to copy the app and captures into the output and build the dossier.
+Run `timeout 100 node tools/verify.mjs` to check local photo imports, cropping, caption changes, and all three downloaded PNGs in Chrome. Set `CHROME_BIN` if your Chrome executable is installed in a nonstandard location. Run `timeout 100 node tools/capture.mjs` to rebuild the dossier screenshots. Use `MAKEFUN_OUTPUT_DIR=/tmp/neon-tide-output node main.ts` to copy the app and captures into the output and build the dossier.
 
 ## Sample photographs
 

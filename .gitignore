@@ -1,6 +1,7 @@
 # Build products and machine-local settings
 /.cache/
 /output/
+/out/
 /node_modules/
 *.log
 .env*

@@ -9,6 +9,8 @@ const byteCap = 256 * 1024;
 const captures = [];
 
 assert.ok(frames.length >= 3 && frames.length <= 4, 'Use three or four screenshots');
+assert.strictEqual(new Set(frames.map(frame => frame.name)).size, frames.length, 'Screenshot names are unique');
+assert.ok(frames.some(frame => frame.editor), 'Include an editor screenshot');
 assert.ok(!frames[0].editor && frames[0].format === 'landscape', 'Start the dossier with the wide export');
 
 await withChrome(async ({ call, evaluate, viewport, open }) => {
@@ -26,6 +28,7 @@ await withChrome(async ({ call, evaluate, viewport, open }) => {
       } else {
         const encoded = await evaluate(`(() => {
           const exported = window.coverStudio.exportCanvas(${JSON.stringify(frame.format)});
+          if (exported.width * ${height} !== exported.height * ${width}) throw Error('Screenshot must preserve the export ratio');
           const reduced = document.createElement('canvas');
           reduced.width = ${width};
           reduced.height = ${height};

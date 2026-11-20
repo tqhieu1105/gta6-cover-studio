@@ -19,8 +19,9 @@
       "subtitle": "The lights never go out",
       "tagline": "ALL ROADS LEAD TO THE WATER",
       "edition": "NIGHT EDITION",
-      "grade": "violet",
-      "layout": "rush"
+      "grade": "noir",
+      "layout": "rush",
+      "lead": 3
     }
   },
   {
@@ -33,7 +34,8 @@
       "tagline": "LAST EXIT BEFORE THE BAY",
       "edition": "COAST EDITION",
       "grade": "glass",
-      "layout": "cascade"
+      "layout": "cascade",
+      "lead": 2
     }
   }
 ]

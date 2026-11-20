@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { access, mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
@@ -50,7 +50,9 @@ export async function withChrome(work) {
       origin = startup.match(/http:\/\/127\.0\.0\.1:\d+/)?.[0];
     });
     await poll(() => origin, 'local static server');
-    chrome = background(process.env.CHROME_BIN || '/opt/google/chrome/chrome', [
+    const bundledBinary = '/opt/google/chrome/chrome';
+    const localChrome = await access(bundledBinary).then(() => bundledBinary, () => 'google-chrome');
+    chrome = background(process.env.CHROME_BIN || localChrome, [
       '--headless=new', '--no-sandbox', '--disable-dev-shm-usage',
       '--disable-extensions', '--disable-component-extensions-with-background-pages',
       '--disable-background-networking', '--no-first-run', '--no-default-browser-check',

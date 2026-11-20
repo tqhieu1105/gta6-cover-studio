@@ -7,8 +7,8 @@ const byId = id => document.getElementById(id);
 const canvas = byId('poster');
 const params = new URLSearchParams(location.search);
 const starters = [
-  ['Boulevard', 'boulevard.jpg'], ['Night Shift', 'night-shift.jpg'],
-  ['Pier', 'pier.jpg'], ['Velvet', 'velvet.jpg'], ['Switchboard', 'switchboard.jpg'],
+  ['Velvet', 'velvet.jpg'], ['Night Shift', 'night-shift.jpg'],
+  ['Pier', 'pier.jpg'], ['Boulevard', 'boulevard.jpg'], ['Switchboard', 'switchboard.jpg'],
 ];
 const formatNames = { landscape: 'Wide', portrait: 'Portrait', square: 'Square' };
 const photoLibrary = [];
@@ -27,6 +27,7 @@ let state = {
   strength: .79,
   inkMode: false,
   panels: createPanelState('premiere', starters.length),
+  sparePanels: [],
 };
 
 for (const field of ['title', 'subtitle', 'tagline', 'edition']) {
@@ -37,6 +38,15 @@ if (GRADES.some(grade => grade.id === params.get('grade'))) state.grade = params
 if (LAYOUTS.some(layout => layout.id === params.get('layout'))) {
   state.layout = params.get('layout');
   state.panels = createPanelState(state.layout, starters.length);
+}
+
+if (params.has('shot') && params.has('lead')) {
+  const index = Number(params.get('lead'));
+  if (Number.isInteger(index) && index > 0 && index < state.panels.length) {
+    const roles = [state.panels[index].role, state.panels[0].role];
+    [state.panels[0].photo, state.panels[index].photo] = [index, 0];
+    [state.panels[0].role, state.panels[index].role] = roles;
+  }
 }
 
 let selected = 0;
@@ -389,8 +399,10 @@ function bindControls() {
   continuous('strength', value => { state.strength = Number(value); });
   byId('assigned-photo').addEventListener('change', event => change(() => { active().photo = Number(event.target.value); }));
   byId('layout').addEventListener('change', event => change(() => {
+    const kept = [...state.panels, ...state.sparePanels];
     state.layout = event.target.value;
-    state.panels = createPanelState(state.layout, photoLibrary.length, state.panels);
+    state.panels = createPanelState(state.layout, photoLibrary.length, kept);
+    state.sparePanels = kept.slice(state.panels.length);
     selected = Math.min(selected, state.panels.length - 1);
   }));
   byId('finish').addEventListener('change', event => change(() => { state.finish = event.target.value; }));

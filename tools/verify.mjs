@@ -70,6 +70,10 @@ await withChrome(async ({ call, evaluate, on, until, open, viewport, origin }) =
   equals('undo restores previous role label', (await inspect()).state.panels[2].role, starter.state.panels[2].role);
   await click('#redo');
   equals('redo restores role edit', (await inspect()).state.panels[2].role, edited.role);
+  await input('layout', 'double');
+  equals('two panel layout shows only two panels', (await inspect()).state.panels.length, 2);
+  await input('layout', 'premiere');
+  equals('a smaller layout preserves the hidden panel edit', (await inspect()).state.panels[2], edited);
 
   const titleChanged = await evaluate(`(() => {
     const fragment = () => {

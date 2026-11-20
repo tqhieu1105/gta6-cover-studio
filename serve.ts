@@ -49,6 +49,7 @@ const server = createServer(async (request, response) => {
     'Content-Type': types[extname(filename)] ?? 'application/octet-stream',
     'Content-Length': file.size,
     'Cache-Control': 'no-store',
+    'Content-Security-Policy': "default-src 'self'; img-src 'self' blob: data:; style-src 'self' 'unsafe-inline'; object-src 'none'",
     'X-Content-Type-Options': 'nosniff',
   });
   if (request.method === 'HEAD') response.end();

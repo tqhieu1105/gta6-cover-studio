@@ -25,10 +25,10 @@ export const LAYOUTS = [
 ];
 
 const cast = [
-  { role: 'THE DRIVER', x: -0.06, y: 0.93 },
+  { role: 'THE SIREN', x: -0.06, y: 0.93 },
   { role: 'THE FIXER', x: 0.08, y: 0.42 },
   { role: 'THE CAPTAIN', x: 0.02, y: 0.63 },
-  { role: 'THE SIREN', x: -0.07, y: 0.74 },
+  { role: 'THE DRIVER', x: -0.07, y: 0.74 },
   { role: 'THE SWITCH', x: -0.12, y: 0.76 },
 ];
 
@@ -74,10 +74,10 @@ function panelBounds(points) {
 function castWide() {
   return [
     [[.286, 0], [.714, 0], [.659, 1], [.234, 1]],
-    [[0, 0], [.286, 0], [.258, .54], [0, .47]],
-    [[0, .47], [.258, .54], [.234, 1], [0, 1]],
-    [[.714, 0], [1, 0], [1, .46], [.684, .54]],
-    [[.684, .54], [1, .46], [1, 1], [.659, 1]],
+    [[0, 0], [.286, 0], [.263, .44], [0, .40]],
+    [[0, .40], [.263, .44], [.234, 1], [0, 1]],
+    [[.714, 0], [1, 0], [1, .398], [.69, .437]],
+    [[.69, .437], [1, .398], [1, 1], [.659, 1]],
   ];
 }
 
@@ -93,11 +93,11 @@ function castTall() {
 
 function castHorizon() {
   return [
-    [[.21, 0], [.79, 0], [.75, .72], [.24, .78]],
-    [[0, 0], [.21, 0], [.24, .63], [0, .49]],
-    [[0, .49], [.24, .63], [.24, .78], [.34, 1], [0, 1]],
-    [[.79, 0], [1, 0], [1, .49], [.77, .61]],
-    [[.77, .61], [1, .49], [1, 1], [.34, 1], [.24, .78], [.75, .72]],
+    [[.231, 0], [.769, 0], [.723, .51], [.284, .59]],
+    [[0, 0], [.231, 0], [.284, .59], [0, .48]],
+    [[0, .48], [.284, .59], [.482, .554], [.451, 1], [0, 1]],
+    [[.769, 0], [1, 0], [1, .475], [.723, .51]],
+    [[.482, .554], [.723, .51], [1, .475], [1, 1], [.451, 1]],
   ];
 }
 
@@ -120,7 +120,7 @@ export function posterGeometry(state, width, height) {
   const unit = Math.min(width, height) / 1080;
   const edge = 25 * unit;
   const y0 = 67 * unit;
-  const fieldH = height * (wide ? .693 : .715);
+  const fieldH = height * (wide ? .866 : .76);
   const fieldW = width - 2 * edge;
   const shapes = design.style === 'cast'
     ? (design.horizontal ? castHorizon() : wide ? castWide() : castTall())
@@ -176,7 +176,13 @@ export function cropTravel(image, rect, zoom = 1) {
   return { w, h, x: Math.max(0, (w - rect.w) / 2), y: Math.max(0, (h - rect.h) / 2) };
 }
 
-const warm = ['#ff9555', '#b68c81', '#ffab4c', '#de527a', '#51e5c8'];
+const lightByRole = [
+  ['#ffa751', '#ad4572'],
+  ['#ed8b79', '#80408a'],
+  ['#eeb651', '#07838c'],
+  ['#ff8270', '#ad2981'],
+  ['#fc9c60', '#3d7990'],
+];
 const colorHex = (color, opacity) => color + Math.round(255 * clamp(opacity, 0, 1)).toString(16).padStart(2, '0');
 
 function projectPhoto(ctx, asset, rect, crop, grade, amount, index, inkMode) {
@@ -202,14 +208,19 @@ function projectPhoto(ctx, asset, rect, crop, grade, amount, index, inkMode) {
 
   if (!amount) return;
   const sides = index % 2 === 0 ? [x, x + w] : [x + w, x];
-  const light = grade.id === 'copper' ? warm[index % warm.length] : grade.hot;
+  const [light, shadow] = grade.id === 'copper' ? lightByRole[index % lightByRole.length] : [grade.hot, grade.cool];
   ctx.globalCompositeOperation = 'soft-light';
   ctx.fillStyle = ramp(ctx, sides[0], y, sides[1], y + h, [
-    colorHex(light, amount * .94), colorHex(light, amount * .18), colorHex(grade.cool, amount * .86),
+    colorHex(light, amount), colorHex(light, amount * .47), colorHex(shadow, amount * .91),
+  ]);
+  ctx.fillRect(x, y, w, h);
+  ctx.globalCompositeOperation = 'color';
+  ctx.fillStyle = ramp(ctx, x, y, x + w, y + h, [
+    colorHex(light, amount * .22), '#0000', colorHex(shadow, amount * (index === 0 ? .33 : .48)),
   ]);
   ctx.fillRect(x, y, w, h);
   ctx.globalCompositeOperation = 'source-over';
-  ctx.fillStyle = ramp(ctx, x, y, x, y + h, [colorHex(ink, .14 * amount), '#0000', colorHex(grade.base, amount * .34)]);
+  ctx.fillStyle = ramp(ctx, x, y, x, y + h, [colorHex(ink, .10 * amount), '#0000', colorHex(grade.base, amount * .36)]);
   ctx.fillRect(x, y, w, h);
 }
 
@@ -244,7 +255,7 @@ function palm(ctx, x, y, size, sway, color) {
 
 function causeway(ctx, geometry, grade) {
   const { width: w, height: h, edge, unit: u } = geometry;
-  const top = h * .695;
+  const top = h * .561;
   ctx.fillStyle = ramp(ctx, 0, top, 0, h, [grade.sky[0], grade.sky[2], grade.cool, grade.base]);
   ctx.fillRect(edge, top, w - edge * 2, h - top - edge);
   ctx.save();
@@ -252,7 +263,23 @@ function causeway(ctx, geometry, grade) {
   ctx.rect(edge, top, w - 2 * edge, h - top - edge);
   ctx.clip();
   const rand = seedRandom(1297);
-  const horizon = h * .891;
+  const horizon = h * .869;
+  const glow = ctx.createRadialGradient(w * .38, horizon - 36 * u, 9 * u, w * .38, horizon, w * .35);
+  glow.addColorStop(0, colorHex(grade.rim, .88));
+  glow.addColorStop(.51, colorHex(grade.hot, .57));
+  glow.addColorStop(1, '#0000');
+  ctx.fillStyle = glow;
+  ctx.fillRect(edge, top, w - 2 * edge, h - top);
+  ctx.strokeStyle = colorHex(grade.rim, .51);
+  ctx.lineWidth = 2 * u;
+  for (let i = 0; i < 4; i++) {
+    const head = w * (.08 + i * .075);
+    const tail = w * (.25 + i * .13);
+    ctx.beginPath();
+    ctx.moveTo(head, horizon);
+    ctx.quadraticCurveTo(tail, horizon - 18 * u, w * .99, horizon + (12 + i * 9) * u);
+    ctx.stroke();
+  }
 
   for (let i = 0; i < 43; i++) {
     const left = i * w / 42;
@@ -289,8 +316,8 @@ function frame(ctx, geometry, grade, state) {
     ctx.fillRect(x, h - edge + 7 * u, 14 * u, 2.8 * u);
   }
   const y = 52 * u;
-  caption(ctx, 'NIGHTFALL PICTURES', edge + 5 * u, y, 16 * u, { tracking: 1.7 * u });
-  caption(ctx, 'BISCAYNE BAY  /  SOUTH FLORIDA', w / 2, y, 14 * u, {
+  caption(ctx, 'NIGHTFALL PICTURES', edge + 5 * u, y, 18 * u, { tracking: 1.7 * u });
+  caption(ctx, 'BISCAYNE BAY  /  SOUTH FLORIDA', w / 2, y, 17 * u, {
     align: 'center', color: grade.rim, tracking: 2.4 * u, limit: w * .37,
   });
   const editionWidth = 158 * u;
@@ -308,7 +335,7 @@ function roleCard(ctx, panel, role, geometry, grade) {
   if (!name) return;
   const { unit: u, width, y0, edge, fieldH } = geometry;
   const isLead = panel.index === 0;
-  const y = isLead ? y0 + (fieldH * .56) : panel.y + 36 * u;
+  const y = isLead ? y0 + Math.min(fieldH * .54, panel.h * .76) : panel.y + 36 * u;
   const edges = [];
   for (let i = 0; i < panel.vertices.length; i++) {
     const [ax, ay] = panel.vertices[i];
@@ -318,7 +345,7 @@ function roleCard(ctx, panel, role, geometry, grade) {
   if (edges.length < 2) return;
   const left = Math.min(...edges) + 13 * u;
   const right = Math.max(...edges) - 13 * u;
-  const size = (isLead ? 19 : 16) * u;
+  const size = (isLead ? 22 : 19) * u;
   ctx.font = `800 ${size}px sans-serif`;
   const labelWidth = Math.max(24 * u, Math.min(ctx.measureText(name).width + 34 * u, right - left, width * .24));
   const x = left > width / 2 ? right - labelWidth : Math.max(edge + 9 * u, left);
@@ -395,19 +422,19 @@ function titlePaint(ctx, height, grade, finish) {
   if (finish === 'paper') return ramp(ctx, 0, 0, 0, height, [paper, grade.rim]);
   if (finish === 'neon') return ramp(ctx, 0, 0, 0, height, [paper, grade.rim, grade.hot, paper]);
   return ramp(ctx, 0, 0, 0, height, [
-    [0, '#fff8e4'], [.23, '#fff1c1'], [.42, '#f9bc70'], [.49, '#9a3754'],
-    [.52, '#fff0cd'], [.65, '#fec384'], [.86, '#f38180'], [1, '#eb5c75'],
+    [0, '#fff8e4'], [.18, '#ffe6ab'], [.43, '#ffaf60'], [.49, '#a02754'],
+    [.515, '#fff7d7'], [.557, '#fecda0'], [.76, '#f69683'], [.95, '#e86d97'], [1, '#b74482'],
   ]);
 }
 
 function titleLockup(ctx, geometry, grade, state) {
   const { width: w, height: h, unit: u, wide } = geometry;
   const value = state.title.trim() || 'NEON TIDE';
-  const y = h * (wide ? .695 : .712);
-  const height = h * (wide ? .167 : .139);
+  const y = h * (wide ? .658 : .695);
+  const height = h * (wide ? .195 : .147);
   const shape = titleShape(value);
   if (shape && shape.advance > 0) {
-    const width = Math.min(w * .842, height * shape.advance / 90);
+    const width = Math.min(w * .85, height * shape.advance / 87);
     const start = (w - width) / 2 + height * .074;
     ctx.save();
     ctx.translate(start, y);
@@ -416,14 +443,14 @@ function titleLockup(ctx, geometry, grade, state) {
     ctx.strokeStyle = ink;
     ctx.lineWidth = 10;
     ctx.save();
-    ctx.translate(-2, 7);
-    ctx.fillStyle = '#5e254c';
+    ctx.translate(-2, 6);
+    ctx.fillStyle = '#6e2c66';
     ctx.stroke(shape.outline);
     ctx.fill(shape.outline, 'evenodd');
     ctx.restore();
     ctx.stroke(shape.outline);
     ctx.lineWidth = 2;
-    ctx.strokeStyle = '#fff0cd';
+    ctx.strokeStyle = '#ffce98';
     ctx.stroke(shape.outline);
     ctx.fillStyle = titlePaint(ctx, 100, grade, state.finish);
     ctx.fill(shape.outline, 'evenodd');
@@ -443,13 +470,13 @@ function titleLockup(ctx, geometry, grade, state) {
 
   const subtitle = state.subtitle.trim();
   if (subtitle) {
-    const size = (wide ? 65 : 56) * u;
-    const baseline = h * (wide ? .918 : .905);
+    const size = (wide ? 79 : 62) * u;
+    const baseline = h * (wide ? .917 : .899);
     ctx.save();
     ctx.shadowColor = ink;
     ctx.shadowBlur = 12 * u;
     ctx.shadowOffsetY = 3 * u;
-    caption(ctx, subtitle, w / 2, baseline, size, {
+    caption(ctx, subtitle, w * (wide ? .537 : .51), baseline, size, {
       align: 'center', italic: true, family: 'serif', weight: 700, limit: w * .69,
     });
     ctx.restore();
@@ -483,16 +510,16 @@ function pressSeal(ctx, x, y, radius, grade) {
 
 function filmFooter(ctx, geometry, grade, state) {
   const { width: w, height: h, unit: u, edge } = geometry;
-  const line = h - 61 * u;
+  const line = h - 60 * u;
   const baseline = h - 32 * u;
   ctx.fillStyle = ink;
   ctx.fillRect(edge, line, w - 2 * edge, 42 * u);
   ctx.fillStyle = colorHex(grade.rim, .64);
   ctx.fillRect(edge, line, w - 2 * edge, u);
   const left = edge + 15 * u;
-  caption(ctx, '★ ★ ★ ★ ★', left, baseline, 15 * u, { color: grade.rim, tracking: 2.4 * u });
-  caption(ctx, state.tagline.toUpperCase(), w / 2, baseline, 15 * u, {
-    align: 'center', tracking: 2 * u, limit: w * .58,
+  caption(ctx, '★ ★ ★ ★ ★', left, baseline, 17 * u, { color: grade.rim, tracking: 2.4 * u });
+  caption(ctx, state.tagline.toUpperCase(), w / 2, baseline, 18 * u, {
+    align: 'center', tracking: 2.2 * u, limit: w * .58,
   });
   const right = w - edge - 101 * u;
   const bars = [2,1,3,1,2,3,1,4,1,2,2,1,4,1,3,3,1,2,1];
@@ -506,6 +533,49 @@ function filmFooter(ctx, geometry, grade, state) {
   }
 }
 
+let collageLayer;
+
+function paintCast(ctx, state, photos, geometry, grade) {
+  const { width, height, unit: u, panels, wide, edge, fieldW } = geometry;
+  collageLayer ??= canvasOf(width, height);
+  if (collageLayer.width !== width) collageLayer.width = width;
+  if (collageLayer.height !== height) collageLayer.height = height;
+  const layer = collageLayer.getContext('2d');
+  layer.clearRect(0, 0, width, height);
+  layer.imageSmoothingQuality = 'high';
+  for (const panel of panels) {
+    const crop = state.panels[panel.index];
+    layer.save();
+    polygon(layer, panel.vertices);
+    layer.clip();
+    projectPhoto(layer, photos[crop.photo], panel, crop, grade, state.strength, panel.index, state.inkMode);
+    layer.restore();
+  }
+  for (const panel of panels) {
+    polygon(layer, panel.vertices);
+    layer.lineJoin = 'bevel';
+    layer.strokeStyle = ink;
+    layer.lineWidth = 11 * u;
+    layer.stroke();
+    layer.lineWidth = 2.3 * u;
+    layer.strokeStyle = panel.index === 0 ? grade.rim : colorHex(grade.rim, .68);
+    layer.stroke();
+  }
+
+  layer.save();
+  layer.globalCompositeOperation = 'destination-in';
+  const fade = height * (wide ? .628 : .65);
+  layer.fillStyle = ramp(layer, 0, fade, 0, height * .875, [[0, '#fff'], [.4, '#fffc'], [1, '#fff0']]);
+  layer.fillRect(0, 0, width, height);
+  layer.restore();
+  ctx.drawImage(collageLayer, 0, 0);
+
+  ctx.fillStyle = ramp(ctx, 0, height * .585, 0, height * .938, [
+    [0, '#0000'], [.30, colorHex(grade.base, .32)], [.66, colorHex(ink, .62)], [1, colorHex(ink, .65)],
+  ]);
+  ctx.fillRect(edge, height * .585, fieldW, height * .353);
+}
+
 export function renderPoster(canvas, state, photos, format = state.format) {
   const [width, height] = FORMATS[format];
   if (canvas.width !== width) canvas.width = width;
@@ -515,43 +585,14 @@ export function renderPoster(canvas, state, photos, format = state.format) {
   ctx.imageSmoothingQuality = 'high';
   const grade = GRADES.find(item => item.id === state.grade) ?? GRADES[0];
   const geometry = posterGeometry(state, width, height);
-  const { unit: u, edge, fieldW, panels, wide } = geometry;
+  const { unit: u, edge, panels, wide } = geometry;
   ctx.fillStyle = ramp(ctx, 0, 0, width, height, [ink, grade.base, ink]);
   ctx.fillRect(0, 0, width, height);
-  for (const panel of panels) {
-    const crop = state.panels[panel.index];
-    ctx.save();
-    polygon(ctx, panel.vertices);
-    ctx.clip();
-    projectPhoto(ctx, photos[crop.photo], panel, crop, grade, state.strength, panel.index, state.inkMode);
-    ctx.restore();
-  }
-  for (const panel of panels) {
-    polygon(ctx, panel.vertices);
-    ctx.lineJoin = 'bevel';
-    ctx.strokeStyle = ink;
-    ctx.lineWidth = 11 * u;
-    ctx.stroke();
-    ctx.lineWidth = 2.3 * u;
-    ctx.strokeStyle = panel.index === 0 ? grade.rim : colorHex(grade.rim, .64);
-    ctx.stroke();
-  }
-  const fadeStart = height * .545;
-  ctx.fillStyle = ramp(ctx, 0, fadeStart, 0, height * .745, [
-    [0, '#0000'], [.56, colorHex(grade.base, .24)], [1, grade.base],
-  ]);
-  ctx.fillRect(edge, fadeStart, fieldW, height * .211);
-  ctx.save();
-  ctx.globalAlpha = .86;
   causeway(ctx, geometry, grade);
-  ctx.restore();
-  ctx.fillStyle = ramp(ctx, 0, height * .679, 0, height * .941, [
-    [0, '#0000'], [.37, colorHex(ink, .62)], [.7, colorHex(ink, .12)], [1, colorHex(ink, .68)],
-  ]);
-  ctx.fillRect(edge, height * .679, fieldW, height * .262);
+  paintCast(ctx, state, photos, geometry, grade);
   for (const panel of panels) roleCard(ctx, panel, state.panels[panel.index].role, geometry, grade);
   titleLockup(ctx, geometry, grade, state);
-  pressSeal(ctx, width - edge - (wide ? 57 : 38) * u, height * (wide ? .894 : .891), (wide ? 36 : 27) * u, grade);
+  pressSeal(ctx, width - edge - (wide ? 57 : 40) * u, height * .895, (wide ? 39 : 29) * u, grade);
   filmFooter(ctx, geometry, grade, state);
   frame(ctx, geometry, grade, state);
   ctx.restore();
