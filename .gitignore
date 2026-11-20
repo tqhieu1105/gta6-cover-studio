@@ -1,3 +1,6 @@
-out/
-node_modules/
+# Generated previews and local build output are never the submitted source.
+/out/
+/node_modules/
 *.log
+# Local browser proof artifacts stay outside the entry.
+.DS_Store

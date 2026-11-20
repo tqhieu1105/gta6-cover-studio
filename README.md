@@ -1,39 +1,32 @@
-# After Hours — Cover Studio
+# gta6-cover-studio
 
 [![make.fun · gta6-cover-art-01](https://make.fun/badge/gta6-cover-art-01.svg)](https://make.fun/bounty/gta6-cover-art-01?utm_source=github&utm_medium=readme&utm_campaign=gta6-cover-art-01)
 [![rank](https://make.fun/badge/gta6-cover-art-01/tqhieu1105/gta6-cover-studio/rank.svg)](https://make.fun/bounty/gta6-cover-art-01/leaderboard?utm_source=github&utm_medium=readme&utm_campaign=gta6-cover-art-01)
 [![reward](https://make.fun/badge/gta6-cover-art-01/tqhieu1105/gta6-cover-studio/reward.svg)](https://make.fun/bounty/gta6-cover-art-01?utm_source=github&utm_medium=readme&utm_campaign=gta6-cover-art-01)
 
-An offline poster studio for your next cult classic. Turn local photos and a caption into an original, slanted multi-panel crime-movie cover with illustrated sunset scenery and dimensional chrome lettering.
+Neon Tide is a private, offline poster atelier. It composes local photographs into an original Vice-inspired key-art cover with a slanted multi-panel layout, split-tone color, hand-drawn city details and dimensional foil lettering. Preview and downloaded PNG use the same compositor.
 
-## Make a cover
+## Run it
 
 ```sh
 node serve.ts --port 8317
 ```
 
-Open `http://localhost:8317` in desktop Chrome. No package installation or build step is needed. The two included demo photos were generated for make.fun's kit and are free to use.
+Open `http://localhost:8317` in desktop Chrome. No build or package install is required. The two kit sample photographs load automatically for the demo. Add your own photos by dropping files on the studio or using **Add your photographs**; imports stay in browser memory.
 
-1. Drop one or several photos into **The Cast**. They automatically fill the panels. Click a photo or drag its thumbnail onto a particular panel to assign it.
-2. Choose one of six layouts. Select a panel in the cover or filmstrip, then drag the photo, scroll to zoom, adjust its position, flip it, or edit its character tag. Arrow keys nudge the selected crop; Shift makes larger nudges.
-3. Edit the two-line caption and tagline, select a title finish, and choose one of six color grades. The illustrated ink pass is optional.
-4. Download a full-resolution PNG with one click: **1080 × 1080**, **1080 × 1350**, or **1920 × 1080**. Each size recomposes the artwork for its aspect ratio. Undo and redo are available with the buttons or Ctrl/Cmd+Z and Ctrl/Cmd+Shift+Z outside text inputs.
+Choose from eight layouts, six color grades and three lettering finishes. Select or drag a panel to reframe it, zoom, flip the image, assign another photo, or edit its role tag. Edit the cover title, tagline, year and edition; optional poster ink, palm silhouettes and a twilight foil border are drawn directly on the canvas. Undo and redo work with the buttons or Ctrl/Cmd+Z.
 
-All photos remain in browser memory. There are no accounts, analytics, uploads, external scripts, font files, network APIs, or runtime dependencies. Reloading clears imported photos. The title's angular Latin letterforms are original polygon outlines in `app/src/art.js`, with a system-font fallback for other characters. Palms, skyline, plane, seal, frames, and billing are also drawn in code. There are no game logos, game art, or game fonts.
+Export a full-resolution PNG in one click at **1080 × 1080**, **1080 × 1350**, or **1920 × 1080**. Each export recomposes the art for its target ratio using the same renderer as the live preview. Photographs never leave the device; the app does not request a remote resource or use an external font, game artwork, logo, or wordmark.
 
-## Rendering and verification
+## Source and screenshots
 
-`app/src/art.js` contains the aspect-aware poster compositor, edge-preserving paint filter, split-tone grading, crop fitting, original lettering, and illustration routines. `app/src/studio.js` implements local imports, panel assignment, crop interactions, history, and PNG downloads. The live preview, full-screen preview, screenshot mode, and PNG export all call the same `renderPoster` function.
+`app/src/art.js` contains the eight panel maps, crop geometry, poster color processing, original vector illustrations, custom outlined display alphabet, editorial seals, frames, and the shared poster compositor. `app/src/studio.js` wires local photo import, panel crops, layouts, editing, history, and PNG export. `shots.json` describes the four actual Chrome views in `screenshots/`; `tools/capture.mjs` takes those views through Chrome's DevTools Protocol and verifies each exported aspect ratio. `main.ts` packages the unchanged kit dossier library with the static app and screenshots.
 
-`shots.json` defines the four actual browser views used for the entry. With the server running, `node tools/capture.mjs --final` captures them using `/usr/bin/google-chrome` and the Chrome DevTools Protocol. It also checks export-canvas dimensions and PNG encoding. The script's kit path is specific to this competition workspace.
+The photographs in the demo are the kit's generated, freely usable examples. All lettering and illustration code is original to this repository.
 
-`main.ts` packages the static app and screenshots and builds the dossier using the kit's unchanged `vendor/makefun-app.ts`. For a local packaging run with Node 22.18 or later:
+## License
 
-```sh
-MAKEFUN_OUTPUT_DIR=out node main.ts
-```
-
-Licensed under MIT. Sample photographs are supplied by the official bounty kit; all application code and drawn artwork were authored for this entry.
+MIT. The included sample photographs are supplied with the make.fun competition kit.
 
 ---
 
