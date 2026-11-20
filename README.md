@@ -4,7 +4,7 @@
 [![Rank](https://make.fun/badge/gta6-cover-art-01/tqhieu1105/gta6-cover-studio/rank.svg)](https://make.fun/competitions/gta6-cover-art-01)
 [![Reward](https://make.fun/badge/gta6-cover-art-01/tqhieu1105/gta6-cover-studio/reward.svg)](https://make.fun/competitions/gta6-cover-art-01)
 
-Build the cast for a fictional South Florida crime film. Neon Tide combines five photo panels with bold, angled lettering and a drawn waterfront. It runs offline as a static site in desktop Chrome.
+Build the cast for a fictional South Florida crime film. The starter library includes six model-generated portraits you can replace. Neon Tide combines five photo panels with bold, angled lettering and a drawn waterfront. It runs offline as a static site in desktop Chrome.
 
 Serve the `app/` directory with any static server, or run `node serve.ts` and open `http://127.0.0.1:8080` with Node.js 22.18 or later.
 
@@ -21,9 +21,9 @@ Run `timeout 100 node tools/verify.mjs` to check local photo imports, cropping, 
 
 ## Sample photographs
 
-`boulevard.jpg` and `pier.jpg` are model-generated samples supplied by the competition kit. The other photographs are original crops and color adjustments of fictional adults from David Beniaguev’s SFHQ-T2I demonstration sheets. Night Shift comes from the Facial Hair sheet (row 1, cell 3), Velvet from Lighting (row 5, cell 6), and Switchboard from Glasses Style (row 6, cell 10). See the [source sheets](https://github.com/SelfishGene/SFHQ-T2I-dataset) and the [dataset license](https://www.kaggle.com/datasets/selfishgene/sfhq-t2i-synthetic-faces-from-text-2-image-models).
+`boulevard.jpg` and `pier.jpg` are model-generated samples supplied by the competition kit. The other four photographs are original crops and color adjustments of fictional adults from David Beniaguev’s SFHQ-T2I demonstration sheets. Night Shift comes from the Facial Hair sheet (row 1, cell 3), Velvet from Lighting (row 5, cell 6), and Switchboard from Glasses Style (row 6, cell 10), and Insider from Lighting (row 6, cell 10). See the [source sheets](https://github.com/SelfishGene/SFHQ-T2I-dataset) and the [dataset license](https://www.kaggle.com/datasets/selfishgene/sfhq-t2i-synthetic-faces-from-text-2-image-models).
 
-The poster layout, scenery, and display lettering are original. The repository's MIT license covers the app source.
+The poster layout, drawn coupe and waterfront, traced sample silhouette, block display letters, and connected script subtitle are original. The silhouette treatment applies only to the bundled Velvet sample; local imports keep their full photograph. The repository's MIT license covers the app source.
 
 MIT License for the SFHQ-T2I sample photographs
 

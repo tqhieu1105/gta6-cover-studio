@@ -27,7 +27,7 @@ export const LAYOUTS = [
 const cast = [
   { role: 'THE SIREN', x: -0.06, y: 0.93 },
   { role: 'THE FIXER', x: 0.08, y: 0.42 },
-  { role: 'THE CAPTAIN', x: 0.02, y: 0.63 },
+  { role: 'THE INSIDER', x: 0.02, y: 0.63 },
   { role: 'THE DRIVER', x: -0.07, y: 0.74 },
   { role: 'THE SWITCH', x: -0.12, y: 0.76 },
 ];
@@ -253,6 +253,56 @@ function palm(ctx, x, y, size, sway, color) {
   ctx.restore();
 }
 
+const velvetProfile = 'M34 442C42 419 36 386 34 366C29 340 22 320 24 291C18 268 18 238 22 209C27 191 34 183 32 168C38 159 44 151 52 146C55 137 65 134 68 124C66 120 63 116 64 111C72 108 74 100 83 93C91 80 99 71 111 59C122 52 134 43 145 39C156 30 170 26 182 23C203 17 225 14 240 23C256 17 268 26 281 32C297 36 305 44 315 59C324 74 323 92 327 103C326 113 320 120 325 130C329 137 334 145 337 153C339 160 331 162 326 166C327 173 335 180 335 189C337 197 335 203 339 213C343 225 342 232 336 238C332 244 322 245 310 248C308 260 296 274 294 284C289 295 299 304 312 307C325 310 327 322 322 331C317 340 322 348 326 356C330 367 337 373 341 383C335 389 322 389 321 397C322 410 330 424 325 442Z';
+
+function paintLead(ctx, asset, panel, crop, grade, amount, inkMode) {
+  if (!asset?.backdrop || amount < .2) {
+    projectPhoto(ctx, asset, panel, crop, grade, amount, 0, inkMode);
+    return;
+  }
+
+  const { x, y, w, h } = panel;
+  const fit = cropTravel(asset.image, panel, crop.zoom);
+  const transform = new DOMMatrix()
+    .translate(x + w / 2 + fit.x * crop.x, y + h / 2 + fit.y * crop.y)
+    .scale(crop.flip ? -1 : 1, 1)
+    .translate(-fit.w / 2, -fit.h / 2)
+    .scale(fit.w / 451, fit.h / 442);
+  const outline = new Path2D();
+  outline.addPath(new Path2D(velvetProfile), transform);
+
+  ctx.fillStyle = ramp(ctx, x, y, x + w * .13, y + h, [
+    '#30283c', grade.sky[0], grade.sky[2], grade.hot, grade.base,
+  ]);
+  ctx.fillRect(x, y, w, h);
+  const sunX = x + w * .79;
+  const sunY = y + h * .43;
+  const sun = ctx.createRadialGradient(sunX, sunY, 1, sunX, sunY, w * .38);
+  sun.addColorStop(0, '#fff6cace');
+  sun.addColorStop(.20, '#fff1c17d');
+  sun.addColorStop(.57, colorHex(grade.rim, .42));
+  sun.addColorStop(1, '#0000');
+  ctx.fillStyle = sun;
+  ctx.fillRect(x, y, w, h);
+  ctx.fillStyle = '#29172b99';
+  ctx.fillRect(x, y + h * .69, w, h * .31);
+  palm(ctx, x + w * .87, y + h * .71, h * .53, -1, '#462640d2');
+  palm(ctx, x + w * .19, y + h * .78, h * .62, 1, '#512745b8');
+  palm(ctx, x + w * .76, y + h * .74, h * .26, .83, '#663144c2');
+
+  ctx.save();
+  ctx.strokeStyle = colorHex(grade.rim, .37);
+  ctx.lineWidth = h * .007;
+  ctx.lineJoin = 'round';
+  ctx.shadowColor = grade.rim;
+  ctx.shadowBlur = h * .026;
+  ctx.stroke(outline);
+  ctx.shadowBlur = 0;
+  ctx.clip(outline);
+  projectPhoto(ctx, asset, panel, crop, grade, amount, 0, inkMode);
+  ctx.restore();
+}
+
 function causeway(ctx, geometry, grade) {
   const { width: w, height: h, edge, unit: u } = geometry;
   const top = h * .561;
@@ -345,12 +395,12 @@ function roleCard(ctx, panel, role, geometry, grade) {
   if (edges.length < 2) return;
   const left = Math.min(...edges) + 13 * u;
   const right = Math.max(...edges) - 13 * u;
-  const size = (isLead ? 22 : 19) * u;
+  const size = (isLead ? 24 : 22) * u;
   ctx.font = `800 ${size}px sans-serif`;
   const labelWidth = Math.max(24 * u, Math.min(ctx.measureText(name).width + 34 * u, right - left, width * .24));
   const x = left > width / 2 ? right - labelWidth : Math.max(edge + 9 * u, left);
   ctx.fillStyle = isLead ? grade.rim : paper;
-  polygon(ctx, [[x + 5 * u, y - 20 * u], [x + labelWidth, y - 20 * u], [x + labelWidth - 5 * u, y + 5 * u], [x, y + 5 * u]]);
+  polygon(ctx, [[x + 5 * u, y - 23 * u], [x + labelWidth, y - 23 * u], [x + labelWidth - 5 * u, y + 5 * u], [x, y + 5 * u]]);
   ctx.fill();
   ctx.fillStyle = isLead ? grade.hot : grade.cool;
   ctx.fillRect(x + 8 * u, y - 12 * u, 4 * u, 8 * u);
@@ -427,6 +477,71 @@ function titlePaint(ctx, height, grade, finish) {
   ]);
 }
 
+const scriptLetters = {
+  a: [31, 'M0 37C8 31 10 18 21 17C33 16 28 36 19 38C8 40 13 17 24 18M28 18C21 30 22 42 38 30'],
+  b: [30, 'M0 38C9 28 30-8 25-9C16-12 10 25 10 32C9 44 26 40 30 26C35 10 21 17 15 29M24 38C28 39 34 34 37 30'],
+  c: [26, 'M0 37C10 28 11 17 23 17C33 16 25 25 22 24M23 17C9 13 5 41 20 38C25 37 29 34 33 30'],
+  d: [33, 'M0 37C7 31 10 18 23 17C31 16 28 36 18 38C7 40 12 18 23 18M26 34C28 19 45-11 39-10C29-10 21 32 29 37C34 41 39 32 40 30'],
+  e: [25, 'M0 37C6 32 14 19 22 17C34 14 28 29 13 29C5 43 22 42 32 30'],
+  f: [27, 'M0 37C11 26 31-11 27-13C20-20 10 16 10 41C11 65-1 63 3 47C8 33 19 31 31 30M1 22C12 24 23 23 27 22'],
+  g: [32, 'M0 37C7 30 12 16 23 17C34 17 28 37 19 39C6 42 10 17 23 18M29 19C23 33 21 66 9 62C-2 55 20 44 39 30'],
+  h: [31, 'M0 37C8 30 28-7 24-10C14-14 6 33 8 38C12 35 18 15 26 17C36 19 16 40 28 38C33 38 36 33 38 30'],
+  i: [18, 'M0 37C5 32 10 22 14 18C10 27 7 40 17 37C20 36 23 33 25 30M17 7L17 8'],
+  j: [20, 'M0 37C6 31 10 24 15 18C12 34 12 66 0 62C-9 57 9 43 27 30M18 7L18 8'],
+  k: [30, 'M0 37C8 28 27-10 23-11C15-13 6 31 8 38M10 31C20 21 31 12 32 19C33 26 13 29 14 31C19 32 14 42 27 37C31 35 34 32 37 30'],
+  l: [19, 'M0 37C11 24 31-7 22-10C13-14 2 38 14 38C19 38 23 33 26 30'],
+  m: [47, 'M0 37C6 31 9 22 14 18C10 29 8 35 9 38C14 29 23 12 28 18C31 23 21 36 23 38C27 33 37 13 42 18C47 23 33 41 45 37C49 36 52 33 54 30'],
+  n: [33, 'M0 37C7 30 11 18 15 18C10 29 9 36 10 38C14 33 26 12 31 18C36 24 22 41 32 37C36 36 39 33 40 30'],
+  o: [30, 'M0 37C8 28 11 16 22 17C37 17 27 40 17 39C5 38 11 18 22 17C24 23 30 27 37 30'],
+  p: [33, 'M0 37C6 31 10 22 15 18L2 60M10 34C17 21 27 10 31 20C36 31 22 43 15 36M24 38C30 38 36 34 40 30'],
+  q: [32, 'M0 37C9 29 11 17 24 17C33 18 27 39 16 39C6 38 13 18 23 18M30 18C25 31 18 57 23 60C28 64 33 45 24 43C28 40 35 34 39 30'],
+  r: [26, 'M0 37C5 32 10 22 12 17C19 18 25 15 24 19C18 23 14 39 25 37C29 36 32 33 33 30'],
+  s: [26, 'M0 37C7 29 21 15 21 17C21 25 29 28 23 35C16 43 6 38 11 33M21 37C26 38 31 33 33 30'],
+  t: [21, 'M0 37C7 29 18 9 22 5C14 26 7 40 18 38C22 37 26 33 28 30M5 19C14 20 25 19 30 18'],
+  u: [33, 'M0 37C7 30 11 20 14 18C9 29 5 40 15 38C21 37 26 24 29 18C25 28 23 41 33 37C36 36 38 33 40 30'],
+  v: [29, 'M0 37C6 30 10 20 13 18C7 30 10 43 18 36C26 30 30 16 27 17C23 21 29 28 36 30'],
+  w: [43, 'M0 37C8 30 10 20 13 18C8 29 7 42 16 37C23 33 28 18 28 18C22 31 24 43 32 35C39 28 43 16 40 17C37 23 41 28 50 30'],
+  x: [30, 'M0 37C6 31 8 19 14 18C20 16 15 37 24 37C30 37 34 33 37 30M29 18C20 26 13 35 5 40'],
+  y: [32, 'M0 37C6 30 9 20 14 18C7 30 6 43 18 36C24 32 28 22 30 18C24 34 20 65 7 62C-2 56 20 44 39 30'],
+  z: [29, 'M0 37C8 30 10 18 14 18C19 18 26 21 29 18C23 27 13 34 12 37C19 33 28 34 25 45C22 57 6 65 7 55C8 46 22 40 36 30'],
+};
+
+function brushSubtitle(ctx, value, center, baseline, height, maxWidth, grade) {
+  const chars = [...value.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase()];
+  if (chars.some(char => char !== ' ' && !scriptLetters[char])) return false;
+  const outline = new Path2D();
+  let pen = 0;
+  for (const char of chars) {
+    if (char === ' ') {
+      pen += 18;
+      continue;
+    }
+    const [advance, path] = scriptLetters[char];
+    outline.addPath(new Path2D(path), new DOMMatrix().translate(pen, 0));
+    pen += advance;
+  }
+  const scale = Math.min(height / 50, maxWidth / Math.max(1, pen));
+  ctx.save();
+  ctx.translate(center - pen * scale / 2, baseline - 38 * scale);
+  ctx.scale(scale, scale);
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.strokeStyle = ink;
+  ctx.lineWidth = 8.2;
+  ctx.shadowColor = ink;
+  ctx.shadowBlur = 8;
+  ctx.stroke(outline);
+  ctx.shadowBlur = 0;
+  ctx.strokeStyle = grade.rim;
+  ctx.lineWidth = 3.9;
+  ctx.stroke(outline);
+  ctx.strokeStyle = paper;
+  ctx.lineWidth = 2.25;
+  ctx.stroke(outline);
+  ctx.restore();
+  return true;
+}
+
 function titleLockup(ctx, geometry, grade, state) {
   const { width: w, height: h, unit: u, wide } = geometry;
   const value = state.title.trim() || 'NEON TIDE';
@@ -476,9 +591,11 @@ function titleLockup(ctx, geometry, grade, state) {
     ctx.shadowColor = ink;
     ctx.shadowBlur = 12 * u;
     ctx.shadowOffsetY = 3 * u;
-    caption(ctx, subtitle, w * (wide ? .537 : .51), baseline, size, {
-      align: 'center', italic: true, family: 'serif', weight: 700, limit: w * .69,
-    });
+    if (!brushSubtitle(ctx, subtitle, w * (wide ? .537 : .51), baseline, size, w * .69, grade)) {
+      caption(ctx, subtitle, w * (wide ? .537 : .51), baseline, size, {
+        align: 'center', italic: true, family: 'serif', weight: 700, limit: w * .69,
+      });
+    }
     ctx.restore();
   }
 }
@@ -508,6 +625,71 @@ function pressSeal(ctx, x, y, radius, grade) {
   ctx.restore();
 }
 
+function getawayCoupe(ctx, geometry, grade) {
+  const { wide, width, height, unit } = geometry;
+  if (!wide) return;
+  ctx.save();
+  const scale = unit * .91;
+  ctx.translate(width * .055, height * .871);
+  ctx.scale(scale, scale);
+  ctx.lineJoin = 'round';
+
+  ctx.fillStyle = ramp(ctx, 0, 0, 0, 90, ['#fc94b6', '#8c235c', '#3b123b']);
+  const shell = new Path2D('M0 43 22 30 86 22 119 0 188 0 237 24 285 33 299 44 299 62 287 67H16L0 60Z');
+  ctx.strokeStyle = ink;
+  ctx.lineWidth = 5;
+  ctx.stroke(shell);
+  ctx.fill(shell);
+  ctx.fillStyle = '#132135';
+  ctx.fill(new Path2D('M99 23 124 5H160V24ZM169 5H185L224 24H169Z'));
+  ctx.fillStyle = '#efc99b91';
+  ctx.fill(new Path2D('M120 7H149L107 22H100ZM171 7H182L210 22H171Z'));
+  ctx.strokeStyle = colorHex(grade.rim, .9);
+  ctx.lineWidth = 2.3;
+  ctx.beginPath();
+  ctx.moveTo(23, 34);
+  ctx.lineTo(84, 28);
+  ctx.lineTo(238, 29);
+  ctx.lineTo(284, 38);
+  ctx.moveTo(103, 35);
+  ctx.lineTo(199, 35);
+  ctx.stroke();
+
+  for (const x of [58, 246]) {
+    ctx.fillStyle = ink;
+    ctx.beginPath();
+    ctx.ellipse(x, 62, 24, 25, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#c3a5b5';
+    ctx.beginPath();
+    ctx.arc(x, 62, 13, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#483049';
+    ctx.lineWidth = 2.3;
+    for (let ray = 0; ray < 5; ray++) {
+      const angle = ray * Math.PI * .4;
+      ctx.beginPath();
+      ctx.moveTo(x, 62);
+      ctx.lineTo(x + 11 * Math.cos(angle), 62 + 11 * Math.sin(angle));
+      ctx.stroke();
+    }
+    ctx.fillStyle = '#eee2d6';
+    ctx.fillRect(x - 2, 60, 4, 4);
+  }
+  ctx.fillStyle = '#fdea9d';
+  ctx.fillRect(278, 40, 15, 6);
+  ctx.fillStyle = '#e76b84';
+  ctx.fillRect(4, 42, 11, 6);
+  ctx.fillStyle = '#27172f';
+  ctx.fillRect(142, 37, 17, 3);
+  ctx.fillStyle = '#79aebe';
+  ctx.fillRect(15, 54, 31, 3);
+  ctx.fillRect(272, 55, 19, 3);
+  ctx.fillStyle = '#e296b457';
+  ctx.fillRect(-13, 87, 331, 2);
+  ctx.restore();
+}
+
 function filmFooter(ctx, geometry, grade, state) {
   const { width: w, height: h, unit: u, edge } = geometry;
   const line = h - 60 * u;
@@ -518,7 +700,7 @@ function filmFooter(ctx, geometry, grade, state) {
   ctx.fillRect(edge, line, w - 2 * edge, u);
   const left = edge + 15 * u;
   caption(ctx, '★ ★ ★ ★ ★', left, baseline, 17 * u, { color: grade.rim, tracking: 2.4 * u });
-  caption(ctx, state.tagline.toUpperCase(), w / 2, baseline, 18 * u, {
+  caption(ctx, state.tagline.toUpperCase(), w / 2, baseline, 22 * u, {
     align: 'center', tracking: 2.2 * u, limit: w * .58,
   });
   const right = w - edge - 101 * u;
@@ -548,7 +730,8 @@ function paintCast(ctx, state, photos, geometry, grade) {
     layer.save();
     polygon(layer, panel.vertices);
     layer.clip();
-    projectPhoto(layer, photos[crop.photo], panel, crop, grade, state.strength, panel.index, state.inkMode);
+    if (panel.index === 0) paintLead(layer, photos[crop.photo], panel, crop, grade, state.strength, state.inkMode);
+    else projectPhoto(layer, photos[crop.photo], panel, crop, grade, state.strength, panel.index, state.inkMode);
     layer.restore();
   }
   for (const panel of panels) {
@@ -592,6 +775,7 @@ export function renderPoster(canvas, state, photos, format = state.format) {
   paintCast(ctx, state, photos, geometry, grade);
   for (const panel of panels) roleCard(ctx, panel, state.panels[panel.index].role, geometry, grade);
   titleLockup(ctx, geometry, grade, state);
+  getawayCoupe(ctx, geometry, grade);
   pressSeal(ctx, width - edge - (wide ? 57 : 40) * u, height * .895, (wide ? 39 : 29) * u, grade);
   filmFooter(ctx, geometry, grade, state);
   frame(ctx, geometry, grade, state);

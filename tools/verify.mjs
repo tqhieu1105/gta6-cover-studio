@@ -37,7 +37,7 @@ await withChrome(async ({ call, evaluate, on, until, open, viewport, origin }) =
   await viewport(1280, 896);
   await open({ qa: '1' });
   const starter = await inspect();
-  equals('five sample photos available', starter.photoCount, 5);
+  equals('six sample photos available', starter.photoCount, 6);
   equals('five different photos in the default collage', starter.state.panels.map(panel => panel.photo), [0, 1, 2, 3, 4]);
   equals('five panel previews rendered', await evaluate('document.querySelectorAll("#panel-picker button").length'), 5);
   equals('three visible PNG buttons', await evaluate(`[...document.querySelectorAll('[data-export]')].every(button => {
@@ -48,9 +48,9 @@ await withChrome(async ({ call, evaluate, on, until, open, viewport, origin }) =
   const { root: documentNode } = await call('DOM.getDocument');
   const { nodeId } = await call('DOM.querySelector', { nodeId: documentNode.nodeId, selector: '#photo-input' });
   await call('DOM.setFileInputFiles', { nodeId, files: samples.map(name => join(root, 'app/samples', name)) });
-  await until(expression + '.photoCount === 9');
-  equals('native file picker imports all four local photos', (await inspect()).photoCount, 9);
-  equals('new cast initially fills the panels', (await inspect()).state.panels.map(panel => panel.photo), [5, 6, 7, 8, 5]);
+  await until(expression + '.photoCount === 10');
+  equals('native file picker imports all four local photos', (await inspect()).photoCount, 10);
+  equals('new cast initially fills the panels', (await inspect()).state.panels.map(panel => panel.photo), [6, 7, 8, 9, 6]);
 
   await click('#auto-fill');
   equals('autofill action assigns five distinct photos', (await inspect()).state.panels.map(panel => panel.photo), [0, 1, 2, 3, 4]);

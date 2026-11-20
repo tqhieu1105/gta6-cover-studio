@@ -8,7 +8,8 @@ const canvas = byId('poster');
 const params = new URLSearchParams(location.search);
 const starters = [
   ['Velvet', 'velvet.jpg'], ['Night Shift', 'night-shift.jpg'],
-  ['Pier', 'pier.jpg'], ['Boulevard', 'boulevard.jpg'], ['Switchboard', 'switchboard.jpg'],
+  ['Insider', 'insider.jpg'], ['Boulevard', 'boulevard.jpg'], ['Switchboard', 'switchboard.jpg'],
+  ['Pier', 'pier.jpg'],
 ];
 const formatNames = { landscape: 'Wide', portrait: 'Portrait', square: 'Square' };
 const photoLibrary = [];
@@ -442,7 +443,7 @@ async function start() {
   new ResizeObserver(fitPreview).observe(byId('preview-area'));
   const samples = await Promise.all(starters.map(async ([name, path]) => {
     const url = new URL('../samples/' + path, import.meta.url);
-    return { name, image: await load(url) };
+    return { name, image: await load(url), backdrop: path === 'velvet.jpg' };
   }));
   photoLibrary.push(...samples);
   libraryControls();
