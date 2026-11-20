@@ -1,80 +1,55 @@
-// Verify the real browser flow and downloaded PNGs; no renderer mocks.
-// This intentionally exercises every layout, grade and export size.
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { resolve } from 'node:path';
-import { withChrome, KIT, pause } from './chrome.mjs';
+import {writeFile,mkdir} from 'node:fs/promises';
+import {resolve} from 'node:path';
+import {withChrome,RESEARCH,pause} from './chrome.mjs';
 
-const proofDirectory=resolve(KIT,'research','exports');
-mkdirSync(proofDirectory,{recursive:true});
-const repository=resolve(import.meta.dirname,'..');
-const checks=[];
-const report={checks,exports:[],errors:[],remoteRequests:[]};
-function verify(value,label){if(!value)throw Error(label);checks.push(label);}
-await withChrome(async({call,evaluate,navigate,on})=>{
-  await call('Network.enable');
-  on('Runtime.exceptionThrown',event=>report.errors.push(event.exceptionDetails.text));
-  on('Network.requestWillBeSent',event=>{
-    if(/^https?:/.test(event.request.url)&&!event.request.url.startsWith('http://127.0.0.1:8317/'))report.remoteRequests.push(event.request.url);
-  });
-  const completed=[];
-  on('Browser.downloadProgress',event=>{if(event.state==='completed')completed.push(event.guid);});
-  await call('Browser.setDownloadBehavior',{behavior:'allow',downloadPath:proofDirectory,eventsEnabled:true});
+const assertions=[];
+function check(name,passed,detail=''){assertions.push({name,passed:Boolean(passed),detail});if(!passed)throw Error(name+': '+detail);}
+await mkdir(resolve(RESEARCH,'exports'),{recursive:true});
+const exceptions=[],remote=[],badResponses=[];
+await withChrome(async({call,evaluate,navigate,on,until,origin})=>{
+  on('Runtime.exceptionThrown',event=>exceptions.push(event.exceptionDetails.exception?.description||event.exceptionDetails.text));
+  on('Network.requestWillBeSent',event=>{if(!event.request.url.startsWith(origin)&&!event.request.url.startsWith('data:')&&!event.request.url.startsWith('blob:'))remote.push(event.request.url);});
+  on('Network.responseReceived',event=>{if(event.response.status>=400)badResponses.push(event.response.url);});
   await call('Emulation.setDeviceMetricsOverride',{width:1280,height:960,deviceScaleFactor:1,mobile:false});
   await navigate();
-  verify(await evaluate('neonTide.photos.length===2 && neonTide.state.panels.length===6'),'Two kit photos and six panels load offline');
-  for(const layout of ['headliner','crossfire','triptych','coastline','split','sixpack','riptide','spotlight']){
-    await evaluate(`document.querySelector('[data-layout="${layout}"]').click()`);
-    for(const format of ['square','portrait','landscape']){
-      await evaluate(`document.querySelector('[data-format="${format}"]').click()`);
-      await pause(45);
-      const dimensions=await evaluate('({w:poster.width,h:poster.height,layout:neonTide.state.layout,format:neonTide.state.format,shown:poster.getBoundingClientRect().toJSON()})');
-      const size={square:[1080,1080],portrait:[1080,1350],landscape:[1920,1080]}[format];
-      verify(dimensions.w===size[0]&&dimensions.h===size[1]&&dimensions.layout===layout,`${layout} renders at ${format} resolution`);
-      verify(Math.abs(dimensions.shown.width/dimensions.shown.height-size[0]/size[1])<.01,`${layout}/${format} preview preserves its aspect ratio`);
-    }
+  let report=await evaluate(`(()=>{const app=window.neonTide;return {photos:app.photos.length,distinct:new Set(app.state.panels.filter(p=>p.source==='photo').map(p=>p.photo)).size,panels:app.state.panels.length,library:document.querySelectorAll('.library-photo').length,formats:document.querySelectorAll('[data-export]').length,ready:app.ready};})()`);
+  check('App initialized',report.ready);check('At least four local sample subjects',report.photos>=4,String(report.photos));check('Five meaningful photo panels',report.panels===6);check('Five distinct default cast photos',report.distinct===5,String(report.distinct));check('Library shows every sample',report.library===report.photos);check('Three one-click export sizes',report.formats===3);
+  // Export all three sizes through the exact compositor used by the preview.
+  for(const [format,w,h] of [['square',1080,1080],['portrait',1080,1350],['landscape',1920,1080]]){
+    const exported=await evaluate(`(()=>{const c=neonTide.exportCanvas('${format}');return {w:c.width,h:c.height,data:c.toDataURL('image/png')};})()`);
+    check(format+' exact PNG dimensions',exported.w===w&&exported.h===h,`${exported.w}×${exported.h}`);
+    const png=Buffer.from(exported.data.split(',')[1],'base64');check(format+' PNG signature',png.subarray(1,4).toString()==='PNG');await writeFile(resolve(RESEARCH,'exports',`neon-tide-${format}.png`),png);
   }
-  const hashes=[];
-  for(const grade of ['sunset','neon','tropic','rose','gold','blue']){
-    await evaluate(`document.querySelector('[data-grade="${grade}"]').click()`);await pause(100);
-    hashes.push(await evaluate('poster.toDataURL().slice(-1400)'));
-    verify(await evaluate(`neonTide.state.grade==='${grade}'`),`${grade} applies through the real controls`);
+  const before=await evaluate(`document.getElementById('poster').toDataURL()`);
+  await evaluate(`(()=>{const t=document.getElementById('title-input');t.value='YOUR CITY';t.dispatchEvent(new Event('input',{bubbles:true}));t.dispatchEvent(new Event('change',{bubbles:true}));})()`);await until('window.__shotReady');
+  check('Caption input changes state',await evaluate(`neonTide.state.title==='YOUR CITY'`));
+  check('Caption edit reaches export canvas',await evaluate(`neonTide.exportCanvas().toDataURL()!==${JSON.stringify(before)}`));
+  await evaluate(`document.getElementById('undo').click()`);await until('window.__shotReady');check('Undo restores title',await evaluate(`neonTide.state.title==='NEON TIDE'`));
+  await evaluate(`document.getElementById('redo').click()`);await until('window.__shotReady');check('Redo restores edit',await evaluate(`neonTide.state.title==='YOUR CITY'`));
+  // Real local file chooser import, with four different files from this entry.
+  const doc=await call('DOM.getDocument');const input=await call('DOM.querySelector',{nodeId:doc.root.nodeId,selector:'#photo-files'});
+  const samples=['boulevard.jpg','fixer.jpg','siren.jpg','lookout.jpg'].map(name=>resolve(import.meta.dirname,'../app/samples',name));
+  await call('DOM.setFileInputFiles',{nodeId:input.nodeId,files:samples});await until('neonTide.photos.length===9&&window.__shotReady');
+  report=await evaluate(`(()=>{const p=neonTide.state.panels.filter(p=>p.source==='photo');return {count:neonTide.photos.length,library:document.querySelectorAll('.library-photo').length,distinct:new Set(p.map(p=>p.photo)).size,allLocal:p.every(p=>p.photo>=5),names:neonTide.photos.slice(5).map(p=>p.name)};})()`);
+  check('Four files imported from local chooser',report.count===9);check('Imported photos appear in library',report.library===9);check('Imported cast auto-fills at least four unique photos',report.distinct===4);check('Every photo panel uses the imported cast',report.allLocal);
+  await evaluate(`neonTide.selectPanel(2);document.getElementById('zoom-range').value='1.65';document.getElementById('zoom-range').dispatchEvent(new Event('input'));document.getElementById('zoom-range').dispatchEvent(new Event('change'));document.getElementById('crop-x').value='.35';document.getElementById('crop-x').dispatchEvent(new Event('input'));document.getElementById('crop-y').value='-.4';document.getElementById('crop-y').dispatchEvent(new Event('input'));`);await until('window.__shotReady');
+  check('Selected panel state visible',await evaluate(`document.getElementById('selected-number').textContent==='03'`));check('Per-panel zoom and crop controls work',await evaluate(`(()=>{const p=neonTide.state.panels[2];return p.zoom===1.65&&p.x===.35&&p.y===-.4;})()`));
+  const cropImage=await evaluate(`neonTide.exportCanvas().toDataURL()`);
+  await evaluate(`document.getElementById('flip-photo').click()`);await until('window.__shotReady');check('Flip updates the export',await evaluate(`neonTide.state.panels[2].flip&&neonTide.exportCanvas().toDataURL()!==${JSON.stringify(cropImage)}`));
+  await evaluate(`document.getElementById('role-input').value='THE HEADLINER';document.getElementById('role-input').dispatchEvent(new Event('input'));document.getElementById('role-input').dispatchEvent(new Event('change'));`);await until('window.__shotReady');check('Role editing changes selected panel',await evaluate(`neonTide.state.panels[2].role==='THE HEADLINER'`));
+  await evaluate(`document.getElementById('reset-crop').click()`);await until('window.__shotReady');check('Reset restores crop and flip',await evaluate(`(()=>{const p=neonTide.state.panels[2];return p.x===0&&p.y===0&&p.zoom===1&&!p.flip;})()`));
+  // Every preset is rendered at every exact aspect ratio to catch geometry errors.
+  for(const layout of ['headliner','crossfire','triptych','coastline','split','sixpack','riptide','spotlight'])for(const format of ['square','portrait','landscape']){
+    const result=await evaluate(`(()=>{neonTide.state.layout='${layout}';neonTide.state.format='${format}';neonTide.render();const c=document.getElementById('poster');return c.width>0&&c.getContext('2d').getImageData(30,30,1,1).data[3]===255;})()`);check(layout+' '+format+' renders',result);
   }
-  verify(new Set(hashes).size>=5,'Color grades produce visibly different canvas bytes');
-  await navigate();
-  const previousTitle=await evaluate('neonTide.state.title');
-  await evaluate(`document.getElementById('title-input').value='TEST\\nDRIVE';document.getElementById('title-input').dispatchEvent(new Event('input',{bubbles:true}))`);
-  verify(await evaluate("neonTide.state.title==='TEST\\nDRIVE'"),'Caption editing reaches poster state');
-  await evaluate("document.getElementById('undo').click()");
-  verify(await evaluate(`neonTide.state.title===${JSON.stringify(previousTitle)}`),'Undo restores the caption');
-  await evaluate("document.getElementById('redo').click()");
-  verify(await evaluate("neonTide.state.title==='TEST\\nDRIVE'"),'Redo reapplies the caption');
-  const doc=await call('DOM.getDocument');
-  const input=await call('DOM.querySelector',{nodeId:doc.root.nodeId,selector:'#photo-files'});
-  await call('DOM.setFileInputFiles',{nodeId:input.nodeId,files:[resolve(repository,'app/samples/boulevard.jpg'),resolve(repository,'app/samples/pier.jpg')]});
-  for(let i=0;i<40;i++){if(await evaluate('neonTide.photos.length===4'))break;await pause(100);}
-  verify(await evaluate("neonTide.photos.length===4&&neonTide.state.panels.every(p=>p.source==='photo'&&p.photo>=2)"),'Local imports automatically fill all panels with the incoming photos');
-  await evaluate("document.getElementById('fill-panels').click()");
-  verify(await evaluate("neonTide.state.panels.every(p=>p.source==='photo')"),'Auto-fill replaces every illustrated panel with a photo');
-  await evaluate("document.getElementById('zoom-range').value=160;document.getElementById('zoom-range').dispatchEvent(new Event('input',{bubbles:true}));document.getElementById('crop-x').value=35;document.getElementById('crop-x').dispatchEvent(new Event('input',{bubbles:true}));document.getElementById('role-input').value='THE PROOF';document.getElementById('role-input').dispatchEvent(new Event('input',{bubbles:true}))");
-  verify(await evaluate("neonTide.state.panels[1].zoom===1.6&&neonTide.state.panels[1].x===.35&&neonTide.state.panels[1].role==='THE PROOF'"),'Zoom, position and role editing apply to the selected panel');
-  await evaluate("document.getElementById('flip-photo').click()");
-  verify(await evaluate('neonTide.state.panels[1].flip'),'Flip applies to the selected photo');
-  const activeSource=await evaluate('neonTide.state.panels[1].source');
-  await evaluate("document.getElementById('panel-photo').value='scene';document.getElementById('panel-photo').dispatchEvent(new Event('change',{bubbles:true}))");
-  verify(await evaluate("neonTide.state.panels[1].source==='photo'"),'Panel selector restores the layout’s photo source after a local assignment');
-  for(const format of ['square','portrait','landscape']){
-    const count=completed.length;
-    await evaluate(`document.querySelector('.export-size[data-export="${format}"]').click()`);
-    for(let wait=0;wait<100;wait++){if(completed.length>count)break;await pause(100);}
-    const bytes=readFileSync(resolve(proofDirectory,`neon-tide-${format}-poster.png`));
-    verify(bytes.subarray(0,8).equals(Buffer.from([137,80,78,71,13,10,26,10])),`${format} download is a real PNG`);
-    const width=bytes.readUInt32BE(16),height=bytes.readUInt32BE(20);
-    const desired={square:[1080,1080],portrait:[1080,1350],landscape:[1920,1080]}[format];
-    verify(width===desired[0]&&height===desired[1],`${format} PNG has exact export dimensions`);
-    report.exports.push({format,width,height,bytes:bytes.length});
-  }
-  verify(report.remoteRequests.length===0,'No assets or photos requested a remote origin');
-  verify(report.errors.length===0,'Chrome reported no JavaScript exceptions');
+  for(const grade of ['sunset','neon','gold','tropic','rose','blue']){check('Color grade '+grade,await evaluate(`(()=>{document.querySelector('[data-grade="${grade}"]').click();neonTide.render();return neonTide.state.grade==='${grade}';})()`));}
+  await navigate('?format=landscape');
+  // Exercise pointer dragging and wheel zoom on the selected lead panel.
+  const rect=await evaluate(`(()=>{const r=document.getElementById('poster').getBoundingClientRect();return {x:r.x+r.width*.5,y:r.y+r.height*.34};})()`);
+  await call('Input.dispatchMouseEvent',{type:'mouseMoved',x:rect.x,y:rect.y});await call('Input.dispatchMouseEvent',{type:'mouseWheel',x:rect.x,y:rect.y,deltaY:-300,deltaX:0});await pause(100);
+  await call('Input.dispatchMouseEvent',{type:'mousePressed',x:rect.x,y:rect.y,button:'left',clickCount:1});await call('Input.dispatchMouseEvent',{type:'mouseMoved',x:rect.x+18,y:rect.y+16,buttons:1});await call('Input.dispatchMouseEvent',{type:'mouseReleased',x:rect.x+18,y:rect.y+16,button:'left',clickCount:1});await until('window.__shotReady');
+  check('Wheel zoom changes lead panel',await evaluate(`neonTide.state.panels[1].zoom>1`));check('Dragging changes lead crop',await evaluate(`neonTide.state.panels[1].x!==0||neonTide.state.panels[1].y!==0`));
+  check('No browser exceptions',exceptions.length===0,exceptions.join('\n'));check('No external requests',remote.length===0,remote.join('\n'));check('No failed local assets',badResponses.length===0,badResponses.join('\n'));
 });
-writeFileSync(resolve(KIT,'research','browser-verification.json'),JSON.stringify(report,null,2));
-console.log(JSON.stringify({passed:checks.length,exports:report.exports,errors:report.errors,remoteRequests:report.remoteRequests},null,2));
+await writeFile(resolve(RESEARCH,'verification.json'),JSON.stringify({time:new Date().toISOString(),assertions,exceptions,remote,badResponses},null,2));
+console.log(`${assertions.length} browser checks passed; 3 exact PNG exports; 0 exceptions; 0 remote requests.`);

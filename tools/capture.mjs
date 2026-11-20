@@ -1,25 +1,22 @@
-import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
-import { resolve } from 'node:path';
-import { withChrome, KIT, pause } from './chrome.mjs';
+import {readFile,writeFile,mkdir,readdir,unlink} from 'node:fs/promises';
+import {resolve} from 'node:path';
+import {withChrome} from './chrome.mjs';
 
-const repository=resolve(import.meta.dirname,'..');
-// Capture uses the same query states the dossier advertises in shots.json.
-const destination=process.argv.includes('--final')?resolve(repository,'screenshots'):resolve(KIT,'research','review');
-mkdirSync(destination,{recursive:true});
-const shots=JSON.parse(readFileSync(resolve(repository,'shots.json'),'utf8'));
-await withChrome(async({call,evaluate,navigate})=>{
-  for(const shot of shots) {
+const root=resolve(import.meta.dirname,'..');
+const shots=JSON.parse(await readFile(resolve(root,'shots.json'),'utf8'));
+await mkdir(resolve(root,'screenshots'),{recursive:true});
+await withChrome(async({call,navigate})=>{
+  for(const shot of shots){
     await call('Emulation.setDeviceMetricsOverride',{width:shot.w,height:shot.h,deviceScaleFactor:1,mobile:false});
     await navigate(shot.query);
-    await pause(150);
-    let quality=82,bytes;
-    do {
-      const image=await call('Page.captureScreenshot',{format:'jpeg',quality,captureBeyondViewport:false});
-      bytes=Buffer.from(image.data,'base64');quality-=4;
-    } while(bytes.length>262144&&quality>=60);
-    if(bytes.length>262144)throw Error(`${shot.name} exceeds the screenshot byte cap.`);
-    writeFileSync(resolve(destination,shot.name),bytes);
-    const dimensions=await evaluate('({width:neonTide.exportCanvas().width,height:neonTide.exportCanvas().height})');
-    console.log(`${shot.name}: ${bytes.length} bytes; export ${dimensions.width} × ${dimensions.height}`);
+    let data;
+    for(const quality of [93,88,83,77,70]){
+      const result=await call('Page.captureScreenshot',{format:'jpeg',quality,captureBeyondViewport:false,fromSurface:true});
+      data=Buffer.from(result.data,'base64');if(data.length<=262144)break;
+    }
+    if(data.length>262144)throw Error('Screenshot exceeds 256 KiB: '+shot.name);
+    await writeFile(resolve(root,'screenshots',shot.name),data);console.log(`${shot.name}: ${shot.w}×${shot.h}, ${data.length} bytes`);
   }
 });
+const retained=new Set(shots.map(shot=>shot.name));
+for(const name of await readdir(resolve(root,'screenshots')))if(!retained.has(name))await unlink(resolve(root,'screenshots',name));

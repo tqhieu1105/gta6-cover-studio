@@ -1,6 +1,8 @@
-# Generated previews and local build output are never the submitted source.
-/out/
-/node_modules/
-*.log
-# Local browser proof artifacts stay outside the entry.
+# Only the offline application and its review artifacts belong in the entry.
 .DS_Store
+.env
+.env.*
+*.log
+node_modules/
+/output/
+.makefun/local*

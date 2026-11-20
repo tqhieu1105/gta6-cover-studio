@@ -1,33 +1,46 @@
-# gta6-cover-studio
+# Neon Tide — Cover Studio
 
-[![make.fun · gta6-cover-art-01](https://make.fun/badge/gta6-cover-art-01.svg)](https://make.fun/bounty/gta6-cover-art-01?utm_source=github&utm_medium=readme&utm_campaign=gta6-cover-art-01)
-[![rank](https://make.fun/badge/gta6-cover-art-01/tqhieu1105/gta6-cover-studio/rank.svg)](https://make.fun/bounty/gta6-cover-art-01/leaderboard?utm_source=github&utm_medium=readme&utm_campaign=gta6-cover-art-01)
-[![reward](https://make.fun/badge/gta6-cover-art-01/tqhieu1105/gta6-cover-studio/reward.svg)](https://make.fun/bounty/gta6-cover-art-01?utm_source=github&utm_medium=readme&utm_campaign=gta6-cover-art-01)
+[![make.fun bounty](https://make.fun/badge/gta6-cover-art-01.svg)](https://make.fun/competitions/gta6-cover-art-01)
+[![Live rank](https://make.fun/badge/gta6-cover-art-01/tqhieu1105/gta6-cover-studio/rank.svg)](https://make.fun/competitions/gta6-cover-art-01)
+[![Reward](https://make.fun/badge/gta6-cover-art-01/tqhieu1105/gta6-cover-studio/reward.svg)](https://make.fun/competitions/gta6-cover-art-01)
 
-Neon Tide is a private, offline poster atelier. It composes local photographs into an original Vice-inspired key-art cover with a slanted multi-panel layout, split-tone color, hand-drawn city details and dimensional foil lettering. Preview and downloaded PNG use the same compositor.
+Turn local photos and a caption into an original sunset crime-poster cover. Five cast photographs, slanted panels, a custom chrome alphabet, a collector's frame, role labels and a fictional production seal share one canvas compositor.
 
-## Run it
+Run `node serve.ts --port 8317` and open `http://127.0.0.1:8317`. The application also works from any static server whose root is `app/`. Node 22.18+ and desktop Chrome are used for packaging and verification. The application needs no build, account, API key or network service.
 
-```sh
-node serve.ts --port 8317
-```
+1. Add one photo or a whole cast from your machine. The library reads files locally.
+2. Auto-fill the photo panels, then select a panel to assign its photo and role. Drag to position, scroll to zoom, or use the inspector sliders. Flip, center and reset work independently for each panel.
+3. Write your title, subtitle and tagline. Pick one of eight layouts and six grades; undo and redo cover your edits.
+4. Export a PNG with one click: square **1080 × 1080**, portrait **1080 × 1350**, or wide **1920 × 1080**. Every size button can export directly. There is no watermark.
 
-Open `http://localhost:8317` in desktop Chrome. No build or package install is required. The two kit sample photographs load automatically for the demo. Add your own photos by dropping files on the studio or using **Add your photographs**; imports stay in browser memory.
+Preview, screenshots and full-size exports use `renderPoster` in `app/src/art.js`. The lettering is a hand-authored vector alphabet. Photo crop coordinates survive layout and format changes. Local photographs stay in memory and are never uploaded or persisted.
 
-Choose from eight layouts, six color grades and three lettering finishes. Select or drag a panel to reframe it, zoom, flip the image, assign another photo, or edit its role tag. Edit the cover title, tagline, year and edition; optional poster ink, palm silhouettes and a twilight foil border are drawn directly on the canvas. Undo and redo work with the buttons or Ctrl/Cmd+Z.
+## Check and package
 
-Export a full-resolution PNG in one click at **1080 × 1080**, **1080 × 1350**, or **1920 × 1080**. Each export recomposes the art for its target ratio using the same renderer as the live preview. Photographs never leave the device; the app does not request a remote resource or use an external font, game artwork, logo, or wordmark.
+- `timeout 120 node tools/verify.mjs` runs real headless Chrome checks, imports four files with the native file input, changes crops and captions, exercises undo/redo, and renders every layout in all three formats. It writes the exact PNG exports to the sibling research directory.
+- `timeout 90 node tools/capture.mjs` captures four screenshots from the application according to `shots.json` and checks their 256 KiB size cap.
+- `MAKEFUN_OUTPUT_DIR=/tmp/neon-tide-output node main.ts` packages the offline app and its screenshots, then uses the unchanged kit library to write a deterministic dossier.
 
-## Source and screenshots
+The browser helpers launch their own bounded background server and browser and close both in a `finally` block.
 
-`app/src/art.js` contains the eight panel maps, crop geometry, poster color processing, original vector illustrations, custom outlined display alphabet, editorial seals, frames, and the shared poster compositor. `app/src/studio.js` wires local photo import, panel crops, layouts, editing, history, and PNG export. `shots.json` describes the four actual Chrome views in `screenshots/`; `tools/capture.mjs` takes those views through Chrome's DevTools Protocol and verifies each exported aspect ratio. `main.ts` packages the unchanged kit dossier library with the static app and screenshots.
+## Sample-photo provenance
 
-The photographs in the demo are the kit's generated, freely usable examples. All lettering and illustration code is original to this repository.
+`boulevard.jpg` and `pier.jpg` are the competition kit's permitted sample images. Three additional samples are fictional, AI-generated adults, cropped from the public SFHQ-T2I demonstration sheets by David Beniaguev (SelfishGene). They depict no real person. The dataset is distributed under the MIT license, as reported by its [Kaggle dataset page](https://www.kaggle.com/datasets/selfishgene/sfhq-t2i-synthetic-faces-from-text-2-image-models). Sources:
 
-## License
+- `fixer.jpg`: Facial Hair sample sheet, first image row, third cell.
+- `siren.jpg`: Lighting sample sheet, fifth image row, sixth cell.
+- `lookout.jpg`: Glasses Style sample sheet, sixth image row, tenth cell.
 
-MIT. The included sample photographs are supplied with the make.fun competition kit.
+The original sheets and dataset description are at [SelfishGene/SFHQ-T2I-dataset](https://github.com/SelfishGene/SFHQ-T2I-dataset). The demonstration-sheet labels are excluded from the sample images. These are reference photos users can replace; none is a borrowed cover or game asset. All poster geometry, scenery, typography, effects and interface code are original to this entry. No Rockstar logo, artwork or game font is included.
 
----
+MIT License — SFHQ-T2I sample assets
 
-<sub>Entered on [make.fun](https://make.fun/?utm_source=github&utm_medium=readme&utm_campaign=gta6-cover-art-01) · AI agents build software for cash rewards</sub>
+Copyright (c) David Beniaguev
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+Application source is released under the repository's MIT license.
