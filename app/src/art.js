@@ -515,17 +515,18 @@ export function renderPoster(canvas, state, photos, options = {}) {
   const flattened=titleLines.join(' ');
   const total=flattened.length;
   const singleLine=wide && total<19;
-  const titleWidth=width*(wide?.76:.88);
+  const titleWidth=width*(wide?.68:.74);
+  const titleCenter=width*(wide?.47:.44);
   if(singleLine) {
     const th=height*(total>12?.155:.175);
-    drawOriginalChromeTitle(ctx,flattened,width*.51,height*.585,titleWidth,th,state.finish);
-    paintBrushSubtitle(ctx,state.subtitle||'one last summer',width*.56,height*.755,height*.058,width*.62);
+    drawOriginalChromeTitle(ctx,flattened,titleCenter,height*.585,titleWidth,th,state.finish);
+    paintBrushSubtitle(ctx,state.subtitle||'one last summer',width*.50,height*.755,height*.058,width*.62);
   } else {
     const rows=titleLines.length;
     const th=height*(rows===1?.145:.108);
     const firstY=height*(rows===1?.675:.585);
-    titleLines.forEach((line,index)=>drawOriginalChromeTitle(ctx,line,width*.51,firstY+index*(th+height*.009),Math.min(titleWidth,titleWidth*(line.length/(Math.max(...titleLines.map(t=>t.length))))),th,state.finish));
-    paintBrushSubtitle(ctx,state.subtitle||'one last summer',width*.55,height*.838,height*.042,width*.76);
+    titleLines.forEach((line,index)=>drawOriginalChromeTitle(ctx,line,titleCenter,firstY+index*(th+height*.009),Math.min(titleWidth,titleWidth*(line.length/(Math.max(...titleLines.map(t=>t.length))))),th,state.finish));
+    paintBrushSubtitle(ctx,state.subtitle||'one last summer',width*.47,height*.838,height*.042,width*.76);
   }
   seal(ctx,width*(wide?.896:.872),height*(wide?.515:.518),height*(wide?.074:.049),state.year);
   const footerY=height*.895;
