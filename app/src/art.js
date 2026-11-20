@@ -20,10 +20,10 @@ export const LAYOUTS = [
   { id: 'headliner', name: 'Headliner', panels: [
     cut([[0,0],[.29,0],[.25,.57],[0,.62]], 'THE CAPTAIN', 'photo', 1),
     cut([[.30,0],[.72,0],[.78,1],[.24,1]], 'THE DRIVER', 'photo', 0),
-    cut([[.73,0],[1,0],[1,.41],[.755,.45]], 'PALM DISTRICT', 'establishing'),
+    cut([[.73,0],[1,0],[1,.41],[.755,.45]], 'THE GETAWAY', 'photo', 1),
     cut([[0,.64],[.245,.59],[.21,1],[0,1]], 'THE GETAWAY', 'coupe'),
-    cut([[.76,.47],[1,.43],[1,.72],[.78,.74]], 'LAST FERRY', 'marina'),
-    cut([[.785,.76],[1,.74],[1,1],[.80,1]], 'OCEAN DRIVE', 'motel'),
+    cut([[.76,.47],[1,.43],[1,.72],[.78,.74]], 'THE CAPTAIN', 'photo', 0),
+    cut([[.785,.76],[1,.74],[1,1],[.80,1]], 'LAST LIGHT', 'photo', 1),
   ]},
   { id: 'crossfire', name: 'Crossfire', panels: [
     cut([[0,0],[.61,0],[.53,.66],[0,.58]], 'THE DRIVER', 'photo', 0),
@@ -517,13 +517,13 @@ export function renderPoster(canvas, state, photos, options = {}) {
   const singleLine=wide && total<19;
   const titleWidth=width*(wide?.76:.88);
   if(singleLine) {
-    const th=height*(total>12?.185:.21);
-    drawOriginalChromeTitle(ctx,flattened,width*.51,height*.555,titleWidth,th,state.finish);
+    const th=height*(total>12?.155:.175);
+    drawOriginalChromeTitle(ctx,flattened,width*.51,height*.585,titleWidth,th,state.finish);
     paintBrushSubtitle(ctx,state.subtitle||'one last summer',width*.56,height*.755,height*.058,width*.62);
   } else {
     const rows=titleLines.length;
-    const th=height*(rows===1?.17:.137);
-    const firstY=height*(rows===1?.65:.535);
+    const th=height*(rows===1?.145:.108);
+    const firstY=height*(rows===1?.675:.585);
     titleLines.forEach((line,index)=>drawOriginalChromeTitle(ctx,line,width*.51,firstY+index*(th+height*.009),Math.min(titleWidth,titleWidth*(line.length/(Math.max(...titleLines.map(t=>t.length))))),th,state.finish));
     paintBrushSubtitle(ctx,state.subtitle||'one last summer',width*.55,height*.838,height*.042,width*.76);
   }
