@@ -4,22 +4,22 @@ const alphabet = {
   B: 'M0 0H64L80 16V38L69 49 84 61V84L68 100H0ZM23 21V40H53L58 35V26L53 21ZM23 60V79H56L61 74V65L56 60Z',
   C: 'M17 0H80V23H30L23 30V70L30 77H80V100H17L0 83V17Z',
   D: 'M0 0H65L85 20V80L65 100H0ZM24 23V77H53L61 69V31L53 23Z',
-  E: 'M0 0H78V22H24V39H68V60H24V78H78V100H0Z',
+  E: 'M0 0H78V23H24V39H67V61H24V77H78V100H0Z',
   F: 'M0 0H78V23H24V41H68V63H24V100H0Z',
   G: 'M17 0H81V22H30L23 29V71L30 78H60V62H43V42H83V83L66 100H17L0 83V17Z',
   H: 'M0 0H24V38H61V0H85V100H61V61H24V100H0Z',
-  I: 'M0 0H54V20H38V80H54V100H0V80H16V20H0Z',
+  I: 'M0 0H54V21H39V79H54V100H0V79H15V21H0Z',
   J: 'M58 0H82V82L64 100H17L0 83V64H23V72L29 78H52L58 72Z',
   K: 'M0 0H24V40H32L62 0H90L52 49 93 100H65L33 61H24V100H0Z',
   L: 'M0 0H24V77H76V100H0Z',
   M: 'M0 0H23L47 34 71 0H94V100H71V35L47 66 23 35V100H0Z',
-  N: 'M0 0H23L61 60V0H85V100H62L24 40V100H0Z',
+  N: 'M0 0H25L60 58V0H85V100H61L25 42V100H0Z',
   O: 'M17 0H68L85 17V83L68 100H17L0 83V17ZM30 22 23 29V71L30 78H55L62 71V29L55 22Z',
   P: 'M0 0H65L83 18V49L65 67H24V100H0ZM24 23V45H54L60 39V29L54 23Z',
   Q: 'M17 0H68L85 17V78L76 87 90 101 76 115 61 100H17L0 83V17ZM30 22 23 29V71L30 78H45L35 68 49 54 62 67V29L55 22Z',
   R: 'M0 0H65L83 18V48L67 64 88 100H61L41 66H24V100H0ZM24 22V44H54L60 38V28L54 22Z',
   S: 'M17 0H80V22H29L23 28V35L28 40H67L83 56V83L66 100H0V78H54L60 72V65L55 60H17L0 43V17Z',
-  T: 'M0 0H86V23H55V100H31V23H0Z',
+  T: 'M0 0H87V24H56V100H31V24H0Z',
   U: 'M0 0H24V71L31 78H54L61 71V0H85V83L68 100H17L0 83Z',
   V: 'M0 0H24L43 73 63 0H87L58 100H28Z',
   W: 'M0 0H23L36 66 53 20H69L86 66 100 0H123L101 100H79L61 55 44 100H22Z',
@@ -41,100 +41,154 @@ const alphabet = {
   '?': 'M0 16 16 0H55L71 16V41L45 62V71H23V51L49 33V28L43 22H28L22 28V36H0ZM23 81H45V100H23Z',
 };
 const advances = { I: 54, W: 123, M: 94, L: 76, 1: 70, '-': 42, '!': 22, '?': 71 };
-const outline = '#160b25';
-export function linear(ctx, x0, y0, x1, y1, colors) {
-  const gradient = ctx.createLinearGradient(x0, y0, x1, y1);
-  colors.forEach((stop, index) => {
-    const [position, color] = Array.isArray(stop) ? stop : [index / (colors.length - 1), stop];
-    gradient.addColorStop(position, color);
+const ink = '#15091e';
+
+export function linear(ctx, x0, y0, x1, y1, stops) {
+  const ramp = ctx.createLinearGradient(x0, y0, x1, y1);
+  stops.forEach((stop, index) => {
+    const offset = Array.isArray(stop) ? stop[0] : index / Math.max(1, stops.length - 1);
+    ramp.addColorStop(offset, Array.isArray(stop) ? stop[1] : stop);
   });
-  return gradient;
+  return ramp;
 }
-export function print(ctx, text, x, y, pixels, settings = {}) {
+
+export function print(ctx, text, x, baseline, size, options = {}) {
   ctx.save();
-  ctx.font = `${settings.italic ? 'italic ' : ''}${settings.weight ?? 800} ${pixels}px ${settings.family || 'Arial, sans-serif'}`;
-  ctx.textBaseline = 'alphabetic'; ctx.textAlign = settings.align || 'left';
-  ctx.letterSpacing = `${settings.spacing || 0}px`;
-  ctx.fillStyle = settings.color || '#fff0d4';
-  settings.limit ? ctx.fillText(text, x, y, settings.limit) : ctx.fillText(text, x, y);
+  ctx.font = `${options.italic ? 'italic ' : ''}${options.weight ?? 800} ${size}px ${options.family ?? 'Arial,sans-serif'}`;
+  ctx.textAlign = options.align ?? 'left';
+  ctx.textBaseline = 'alphabetic';
+  ctx.letterSpacing = `${options.spacing ?? 0}px`;
+  ctx.fillStyle = options.color ?? '#fff0d3';
+  if (options.limit) ctx.fillText(text, x, baseline, options.limit);
+  else ctx.fillText(text, x, baseline);
   ctx.restore();
 }
-function shapeCaption(caption) {
-  const normalized = caption.normalize('NFD').replace(/\p{M}/gu, '').toUpperCase();
-  if ([...normalized].some(character => character !== ' ' && !(character in alphabet))) return null;
-  const result = new Path2D();
-  let cursor = 0;
-  for (const character of normalized) {
-    if (character === ' ') { cursor += 40; continue; }
-    result.addPath(new Path2D(alphabet[character]), new DOMMatrix().translate(cursor, 0));
-    cursor += (advances[character] || 86) + 7;
+
+// Unknown characters use the browser's system alphabet, retaining user-entered text.
+function wordShape(caption) {
+  const text = caption.normalize('NFD').replace(/\p{M}/gu, '').toUpperCase();
+  const shape = new Path2D();
+  let x = 0;
+  for (const glyph of text) {
+    if (glyph === ' ') { x += 31; continue; }
+    const contour = alphabet[glyph];
+    if (!contour) return null;
+    shape.addPath(new Path2D(contour), new DOMMatrix().translate(x, 0));
+    x += (advances[glyph] || 86) + 6;
   }
-  return { path: result, width: Math.max(1, cursor - 7) };
+  return { path: shape, width: Math.max(1, x - 6) };
 }
+
 export function titleSafeRegion(width, height) {
-  const landscape = width > height * 1.12;
-  return { x: width * .055, y: height * (landscape ? .705 : .71), w: width * .89, h: height * (landscape ? .20 : .16) };
+  const wide = width > height * 1.12;
+  const x = width * .067;
+  const y = height * (wide ? .698 : .706);
+  return { x, y, w: width - 2 * x, h: height * (wide ? .19 : .164) };
 }
-function chromeColors(finish) {
-  if (finish === 'paper') return ['#fff9e5', '#ffd6a7'];
-  if (finish === 'neon') return [[0, '#f3fffb'], [.45, '#9cf2e9'], [.48, '#125c7b'], [.51, '#fffbea'], [1, '#bf69cf']];
-  return [[0, '#fff9df'], [.13, '#ffe7b4'], [.35, '#ffbf6c'], [.43, '#fa9365'],
-    [.47, '#4c1746'], [.505, '#32132f'], [.525, '#fff7d4'], [.61, '#ffbca8'], [.82, '#ee7cab'], [1, '#c84899']];
+
+function metalPalette(finish) {
+  if (finish === 'paper') return ['#fff9dc', '#ffcc98'];
+  if (finish === 'neon') return [
+    [0, '#edfff6'], [.4, '#80e5d5'], [.47, '#297d91'], [.52, '#193b5a'],
+    [.56, '#d1fff2'], [1, '#b278d0'],
+  ];
+  return [
+    [0, '#fff7d5'], [.12, '#ffe5a6'], [.40, '#ffb478'], [.465, '#f78964'],
+    [.481, '#471e44'], [.515, '#2a112c'], [.54, '#fff0c5'],
+    [.63, '#f5a5b3'], [.82, '#e77aa6'], [1, '#c14e8a'],
+  ];
 }
-export function renderChromeTitle(ctx, caption, width, height, finish = 'chrome') {
-  const region = titleSafeRegion(width, height);
-  const letters = shapeCaption(caption.trim() || 'NEON TIDE');
-  if (!letters) {
-    // Retain arbitrary captions, including characters beyond the custom display alphabet.
-    ctx.save(); ctx.textAlign = 'center';
-    ctx.font = `900 italic ${region.h * 1.12}px Arial, sans-serif`;
-    ctx.lineJoin = 'round'; ctx.lineWidth = region.h * .065; ctx.strokeStyle = outline;
-    ctx.strokeText(caption, width / 2, region.y + region.h, region.w);
-    ctx.fillStyle = linear(ctx, 0, region.y, 0, region.y + region.h, chromeColors(finish));
-    ctx.fillText(caption, width / 2, region.y + region.h, region.w); ctx.restore();
-    return region;
-  }
-  const faceWidth = Math.min(region.w, region.h * letters.width / 85);
-  ctx.save();
-  ctx.translate((width - faceWidth) / 2 + region.h * .065, region.y);
-  ctx.transform(faceWidth / letters.width, 0, -region.h * .0013, region.h / 100, 0, 0);
+
+function systemTitle(ctx, text, area, finish, center) {
+  ctx.font = `italic 900 ${area.h * 1.08}px Arial,sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'alphabetic';
   ctx.lineJoin = 'round';
-  for (let depth = 8; depth > 0; depth--) {
-    ctx.save(); ctx.translate(-depth * .55, depth * .80);
-    ctx.lineWidth = 8; ctx.strokeStyle = outline; ctx.stroke(letters.path);
-    ctx.fillStyle = depth > 4 ? '#501f55' : '#b45496'; ctx.fill(letters.path, 'evenodd'); ctx.restore();
+  const baseline = area.y + area.h * .96;
+  ctx.lineWidth = area.h * .092;
+  ctx.strokeStyle = ink;
+  ctx.strokeText(text, center, baseline, area.w);
+  ctx.lineWidth = area.h * .02;
+  ctx.strokeStyle = '#ffdeac';
+  ctx.strokeText(text, center, baseline, area.w);
+  ctx.fillStyle = linear(ctx, 0, area.y, 0, area.y + area.h, metalPalette(finish));
+  ctx.fillText(text, center, baseline, area.w);
+}
+
+export function renderChromeTitle(ctx, caption, width, height, finish = 'chrome') {
+  const area = titleSafeRegion(width, height);
+  const text = caption.trim() || 'NEON TIDE';
+  const word = wordShape(text);
+  ctx.save();
+  if (!word) {
+    systemTitle(ctx, text, area, finish, width / 2);
+    ctx.restore();
+    return area;
   }
-  ctx.lineWidth = 8; ctx.strokeStyle = outline;
-  ctx.shadowColor = '#080414'; ctx.shadowBlur = 6; ctx.stroke(letters.path); ctx.shadowBlur = 0;
-  ctx.strokeStyle = '#ffe5b5'; ctx.lineWidth = 2.5; ctx.stroke(letters.path);
-  ctx.fillStyle = linear(ctx, 0, 0, 0, 100, chromeColors(finish)); ctx.fill(letters.path, 'evenodd');
+  const span = Math.min(area.w, word.width * area.h / 86);
+  const lean = area.h * .185;
+  ctx.translate((width - span + lean) / 2, area.y);
+  ctx.transform(span / word.width, 0, -lean / 100, area.h / 100, 0, 0);
+  ctx.lineJoin = 'round';
+
+  for (let step = 11; step > 0; step--) {
+    ctx.save();
+    ctx.translate(-step * .42, step * .53);
+    ctx.strokeStyle = ink;
+    ctx.lineWidth = 6.9;
+    ctx.stroke(word.path);
+    ctx.fillStyle = step > 4 ? '#442039' : '#a64e70';
+    ctx.fill(word.path, 'evenodd');
+    ctx.restore();
+  }
+  ctx.strokeStyle = '#140b20';
+  ctx.lineWidth = 7.4;
+  ctx.stroke(word.path);
+  ctx.lineWidth = 2.6;
+  ctx.strokeStyle = '#ffe5b4';
+  ctx.stroke(word.path);
+  ctx.fillStyle = linear(ctx, 0, 0, 0, 100, metalPalette(finish));
+  ctx.fill(word.path, 'evenodd');
+
   if (finish === 'chrome') {
-    ctx.save(); ctx.clip(letters.path, 'evenodd');
-    for (const [y, thick, color] of [[64, 1.1, '#fff3d882'], [72, 1.2, '#8d3265'], [80, 1.5, '#ffd3c394'], [88, 1.5, '#7b2a64'], [96, 1.2, '#ffd1c08a']]) {
-      ctx.fillStyle = color; ctx.fillRect(-10, y, letters.width + 20, thick);
-    }
+    ctx.save();
+    ctx.clip(word.path, 'evenodd');
+    [[68, 1.7, '#ffe8b9b8'], [78, 1.8, '#9f3865bf'], [88, 1.7, '#ffd6b4a8'], [96, 1.3, '#953557b0']]
+      .forEach(([y, thickness, color]) => {
+        ctx.fillStyle = color;
+        ctx.fillRect(-10, y, word.width + 20, thickness);
+      });
     ctx.restore();
   }
   ctx.restore();
-  return region;
+  return area;
 }
-export function renderSignature(ctx, caption, width, height, rim, accent = '#ed78ae') {
-  if (!caption.trim()) return;
-  const landscape = width > height * 1.12;
+
+export function renderSignature(ctx, caption, width, height, cream, pink = '#ec729e') {
+  const text = caption.trim();
+  if (!text) return;
+  const wide = width > height * 1.12;
   const unit = Math.min(width, height) / 1080;
-  let pixels = height * (landscape ? .115 : .068);
+  let size = height * (wide ? .129 : .075);
   ctx.save();
-  ctx.font = `${pixels}px Yellowtail, cursive`;
-  const maxWidth = width * (landscape ? .62 : .77);
-  const measure = ctx.measureText(caption);
-  if (measure.width > maxWidth) pixels *= maxWidth / measure.width;
-  ctx.font = `${pixels}px Yellowtail, cursive`;
-  const descent = ctx.measureText(caption).actualBoundingBoxDescent;
-  const baseline = Math.min(height * .931, height - 80 * unit - descent);
-  ctx.translate(width * .535, baseline); ctx.rotate(-.025);
-  ctx.textAlign = 'center'; ctx.lineJoin = 'round';
-  ctx.lineWidth = pixels * .12; ctx.strokeStyle = outline; ctx.strokeText(caption, 0, 0);
-  ctx.lineWidth = pixels * .045; ctx.strokeStyle = rim; ctx.strokeText(caption, 0, 0);
-  ctx.fillStyle = accent; ctx.fillText(caption, 0, 0);
+  ctx.font = `${size}px Yellowtail,cursive`;
+  const metrics = ctx.measureText(text);
+  const allowedWidth = width * (wide ? .58 : .76);
+  if (metrics.width > allowedWidth) size *= allowedWidth / metrics.width;
+  ctx.font = `${size}px Yellowtail,cursive`;
+  const descent = Math.max(0, ctx.measureText(text).actualBoundingBoxDescent);
+  const baseline = Math.min(height * .927, height - 79 * unit - descent);
+  ctx.translate(width * .526, baseline);
+  ctx.rotate(-.03);
+  ctx.textAlign = 'center';
+  ctx.lineJoin = 'round';
+  ctx.lineWidth = size * .12;
+  ctx.strokeStyle = '#160a20';
+  ctx.strokeText(text, 0, 0);
+  ctx.lineWidth = size * .026;
+  ctx.strokeStyle = cream;
+  ctx.strokeText(text, 0, 0);
+  ctx.fillStyle = linear(ctx, 0, -size * .72, 0, 3, ['#fff2d0', pink]);
+  ctx.fillText(text, 0, 0);
   ctx.restore();
 }

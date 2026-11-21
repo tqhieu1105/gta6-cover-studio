@@ -1,6 +1,37 @@
 [
-  { "name": "1-neon-tide.jpg", "kind": "cover", "format": "landscape", "viewport": [1280, 720] },
-  { "name": "2-cover-studio.jpg", "kind": "editor", "format": "landscape", "viewport": [1280, 896], "select": 2, "zoom": 1.12 },
-  { "name": "3-midnight-run.jpg", "kind": "cover", "format": "portrait", "viewport": [1024, 1280], "look": { "title": "Midnight Run", "subtitle": "The lights never go out", "tagline": "ALL ROADS LEAD TO THE WATER", "edition": "NIGHT EDITION", "grade": "noir", "layout": "premiere", "lead": 3 } },
-  { "name": "4-export-collection.jpg", "kind": "tray", "format": "landscape", "viewport": [1280, 896] }
+  {
+    "name": "1-neon-tide.jpg",
+    "kind": "cover",
+    "format": "landscape",
+    "viewport": [1280, 720]
+  },
+  {
+    "name": "2-cover-studio.jpg",
+    "kind": "editor",
+    "format": "landscape",
+    "viewport": [1280, 896],
+    "select": 2,
+    "zoom": 1.14
+  },
+  {
+    "name": "3-midnight-run.jpg",
+    "kind": "cover",
+    "format": "portrait",
+    "viewport": [1024, 1280],
+    "look": {
+      "title": "MIDNIGHT RUN",
+      "subtitle": "Meet me after dark",
+      "tagline": "SIX STREETS · ONE COAST · ZERO REGRETS",
+      "edition": "NIGHT SHIFT / 06",
+      "grade": "noir",
+      "layout": "premiere",
+      "lead": 3
+    }
+  },
+  {
+    "name": "4-export-collection.jpg",
+    "kind": "tray",
+    "format": "landscape",
+    "viewport": [1280, 896]
+  }
 ]

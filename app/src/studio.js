@@ -1,12 +1,9 @@
-import { FORMATS, LAYOUTS, GRADES, createPanelState, renderPoster, drawPanelPreview,
-  canvasOf, clamp, cropTravel, fitPhotoToAnchor, hitTestPanel } from './art.js';
+import { FORMATS, GRADES, LAYOUTS, createPanelState, renderPoster, drawPanelPreview,
+  fitPhotoToAnchor, cropTravel, hitTestPanel, canvasOf, clamp } from './art.js';
 
-const $ = id => document.getElementById(id);
-const poster = $('poster');
-const query = new URLSearchParams(location.search);
-const names = { landscape: 'Wide', portrait: 'Portrait', square: 'Square' };
-// Face rectangles are hand-placed sample metadata, never inferred for imports.
-const sampleCards = [
+const node = id => document.getElementById(id);
+const formatLabel = { landscape: 'Wide', portrait: 'Portrait', square: 'Square' };
+const DEMOS = [
   { name: 'Velvet', file: 'velvet.jpg', face: [.33, .11, .40, .53], silhouette: true },
   { name: 'Night Shift', file: 'night-shift.jpg', face: [.32, .18, .45, .65] },
   { name: 'Insider', file: 'insider.jpg', face: [.32, .17, .34, .51] },
@@ -14,368 +11,450 @@ const sampleCards = [
   { name: 'Switchboard', file: 'switchboard.jpg', face: [.30, .16, .40, .57] },
   { name: 'Pier', file: 'pier.jpg', face: [.35, .05, .27, .29] },
 ];
-const assets = [];
-const back = [];
-const forward = [];
-const ownedUrls = new Set();
-let model = {
-  title: 'NEON TIDE', subtitle: 'The coast is ours', tagline: 'THE CITY NEVER FORGETS',
-  edition: 'SUNSET EDITION', format: 'landscape', layout: 'premiere', grade: 'violet',
-  finish: 'chrome', strength: .79, inkAmount: .25, heroCutout: true,
-  panels: createPanelState('premiere', sampleCards.length), reserve: [],
-};
-let chosen = 0;
-let geometry;
-let scheduled = 0;
-let pointer;
-let wheelGroup;
-let wheelEnd;
-let importing = Promise.resolve();
-let messageTimer;
 
-for (const key of ['title', 'subtitle', 'tagline', 'edition']) {
-  if (query.has(key)) model[key] = query.get(key).slice(0, Number($(key).maxLength));
-}
-for (const [key, choices] of [['format', Object.keys(FORMATS)], ['layout', LAYOUTS.map(l => l.id)], ['grade', GRADES.map(g => g.id)]]) {
-  if (choices.includes(query.get(key))) model[key] = query.get(key);
-}
-model.panels = createPanelState(model.layout, sampleCards.length);
-if (query.has('lead')) {
-  const other = Number(query.get('lead'));
-  if (Number.isInteger(other) && other > 0 && other < model.panels.length) {
-    [model.panels[0].photo, model.panels[other].photo] = [model.panels[other].photo, model.panels[0].photo];
-    [model.panels[0].role, model.panels[other].role] = [model.panels[other].role, model.panels[0].role];
-  }
-}
-
-const selectedCrop = () => model.panels[chosen];
-const serialize = () => JSON.stringify({ model, chosen });
-function tell(message) {
-  $('toast').textContent = message;
-  $('toast').classList.add('show');
-  clearTimeout(messageTimer);
-  messageTimer = setTimeout(() => $('toast').classList.remove('show'), 2600);
-}
-function updateHistory() {
-  $('undo').disabled = back.length === 0;
-  $('redo').disabled = forward.length === 0;
-}
-function remember(before) {
-  if (before === serialize()) return;
-  back.push(before);
-  if (back.length > 80) back.shift();
-  forward.length = 0;
-  updateHistory();
-}
-function edit(action) {
-  const before = serialize();
-  action();
-  remember(before);
-  syncControls();
-  queueDraw();
-}
-function history(source, target) {
-  if (!source.length) return;
-  target.push(serialize());
-  ({ model, chosen } = JSON.parse(source.pop()));
-  syncControls();
-  updateHistory();
-  queueDraw();
-}
-function button(label, handler) {
-  const node = document.createElement('button');
-  node.type = 'button'; node.textContent = label;
-  node.addEventListener('click', handler);
-  return node;
-}
-async function decode(url) {
-  const image = new Image(); image.src = url;
-  await image.decode();
-  return image;
-}
-
-function buildLibrary() {
-  $('library').replaceChildren();
-  $('assigned-photo').replaceChildren();
-  assets.forEach((asset, i) => {
-    const tile = button('', () => edit(() => {
-      selectedCrop().photo = i;
-      Object.assign(selectedCrop(), fitPhotoToAnchor(asset, geometry.panels[chosen], selectedCrop()));
-    }));
-    tile.dataset.photo = i;
-    tile.title = `Use ${asset.name} in selected panel`;
-    tile.setAttribute('aria-label', tile.title);
-    const image = asset.image.cloneNode(); image.alt = '';
-    const label = document.createElement('span'); label.textContent = asset.name;
-    tile.append(image, label); $('library').append(tile);
-    $('assigned-photo').add(new Option(asset.name, String(i)));
-  });
-  $('photo-count').textContent = `${assets.length} photos`;
-}
-function choosePanel(index) {
-  chosen = index;
-  syncPanel();
-  selectionOverlay();
-}
-function syncPanel() {
-  const crop = selectedCrop();
-  if ($('panel-picker').children.length !== model.panels.length) {
-    $('panel-picker').replaceChildren(...model.panels.map((_, i) => {
-      const tile = button('', () => choosePanel(i));
-      const preview = canvasOf(144, 98);
-      preview.setAttribute('aria-hidden', 'true');
-      tile.append(preview, document.createElement('span'));
-      return tile;
-    }));
-  }
-  $('panel-number').textContent = `${String(chosen + 1).padStart(2, '0')} / ${model.panels.length}`;
-  for (const [id, key] of [['assigned-photo', 'photo'], ['role', 'role'], ['zoom', 'zoom'], ['pan-x', 'x'], ['pan-y', 'y']]) $(id).value = crop[key];
-  $('zoom-value').value = `${crop.zoom.toFixed(2)}×`;
-  $('x-value').value = `${Math.round(crop.x * 100)}%`;
-  $('y-value').value = `${Math.round(crop.y * 100)}%`;
-  $('flip').setAttribute('aria-pressed', crop.flip);
-  drawPanelPreview($('panel-tile'), assets[crop.photo], crop, model);
-  [...$('library').children].forEach(tile => tile.setAttribute('aria-pressed', Number(tile.dataset.photo) === crop.photo));
-  [...$('panel-picker').children].forEach((tile, i) => {
-    const current = model.panels[i];
-    tile.setAttribute('aria-pressed', i === chosen);
-    tile.setAttribute('aria-label', `Panel ${i + 1}: ${current.role}`);
-    tile.lastElementChild.textContent = current.role || `PANEL ${i + 1}`;
-    drawPanelPreview(tile.firstElementChild, assets[current.photo], current, model);
-  });
-}
-function syncControls() {
-  for (const key of ['title', 'subtitle', 'tagline', 'edition', 'layout', 'finish', 'strength']) $(key).value = model[key];
-  $('ink-amount').value = model.inkAmount;
-  $('hero-cutout').checked = model.heroCutout;
-  $('hero-cutout').disabled = !assets[model.panels[0].photo]?.silhouette;
-  $('strength-value').value = `${Math.round(model.strength * 100)}%`;
-  $('ink-value').value = `${Math.round(model.inkAmount * 100)}%`;
-  $('grade-label').value = GRADES.find(item => item.id === model.grade).name;
-  $('preview-dimensions').textContent = FORMATS[model.format].join(' × ');
-  for (const node of $('format-picker').children) node.setAttribute('aria-pressed', node.dataset.format === model.format);
-  for (const node of $('grades').children) node.setAttribute('aria-pressed', node.dataset.grade === model.grade);
-  syncPanel();
-}
-function fitPreview() {
-  const available = $('preview-area');
-  const ratio = Math.min((available.clientWidth - 20) / poster.width, (available.clientHeight - 20) / poster.height);
-  if (ratio > 0) {
-    $('preview-frame').style.width = `${Math.floor(poster.width * ratio)}px`;
-    $('preview-frame').style.height = `${Math.floor(poster.height * ratio)}px`;
-  }
-}
-function selectionOverlay() {
-  if (!geometry) return;
-  const panel = geometry.panels[chosen];
-  const points = panel.vertices.map(point => point.join(',')).join(' ');
-  $('selection').setAttribute('viewBox', `0 0 ${poster.width} ${poster.height}`);
-  $('selection-border').setAttribute('points', points);
-  $('clip-border').setAttribute('points', points);
-  $('crop-grid').setAttribute('d', [1, 2].map(i => {
-    const x = panel.x + panel.w * i / 3, y = panel.y + panel.h * i / 3;
-    return `M${x} ${panel.y}v${panel.h}M${panel.x} ${y}h${panel.w}`;
-  }).join(''));
-  $('crop-handles').replaceChildren(...panel.vertices.map(([x, y]) => {
-    const corner = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-    corner.setAttribute('cx', x); corner.setAttribute('cy', y); corner.setAttribute('r', 7 * geometry.unit);
-    return corner;
-  }));
-  $('crop-hud').textContent = `PANEL ${String(chosen + 1).padStart(2, '0')} · ${selectedCrop().zoom.toFixed(2)}× · DRAG TO REFRAME`;
-  $('cast-status').textContent = `${model.panels.length} panels · ${new Set(model.panels.map(p => p.photo)).size} photos`;
-}
-function queueDraw() {
-  cancelAnimationFrame(scheduled);
-  scheduled = requestAnimationFrame(() => {
-    geometry = renderPoster(poster, model, assets);
-    fitPreview(); selectionOverlay();
-    document.documentElement.dataset.ready = 'true';
-  });
-}
-function exportCanvas(format) {
-  const result = canvasOf(...FORMATS[format]);
-  renderPoster(result, model, assets, format);
+function create(tag, text, attrs = {}) {
+  const result = document.createElement(tag);
+  if (text !== null) result.textContent = text;
+  for (const [key, value] of Object.entries(attrs)) result.setAttribute(key, value);
   return result;
 }
-function autoFill(first = 0, count = assets.length) {
-  edit(() => {
-    model.panels.forEach((crop, i) => {
-      crop.photo = first + i % count;
-      Object.assign(crop, fitPhotoToAnchor(assets[crop.photo], geometry.panels[i], crop), { autoFrame: true });
+
+function button(text, callback, attrs = {}) {
+  const result = create('button', text, { type: 'button', ...attrs });
+  result.addEventListener('click', callback);
+  return result;
+}
+
+async function decodeImage(url) {
+  const result = new Image();
+  result.decoding = 'async';
+  result.src = url;
+  await result.decode();
+  if (!result.naturalWidth || !result.naturalHeight) throw Error('Empty photo');
+  return result;
+}
+
+class CoverStudio {
+  constructor() {
+    this.photos = [];
+    this.selected = 0;
+    this.past = [];
+    this.future = [];
+    this.ownedURLs = new Set();
+    this.pendingField = null;
+    this.queue = Promise.resolve();
+    this.canvas = node('poster');
+    this.state = {
+      title: 'NEON TIDE',
+      subtitle: 'The coast is ours',
+      tagline: 'THE CITY NEVER FORGETS',
+      edition: 'SUNSET EDITION',
+      format: 'landscape',
+      layout: 'premiere',
+      grade: 'ember',
+      finish: 'chrome',
+      strength: .79,
+      inkAmount: .25,
+      heroCutout: true,
+      panels: createPanelState('premiere', 6),
+      reserve: [],
+    };
+    const query = new URLSearchParams(location.search);
+    for (const key of ['title', 'subtitle', 'tagline', 'edition']) {
+      if (query.has(key)) this.state[key] = query.get(key).slice(0, node(key).maxLength);
+    }
+    for (const [key, allowed] of Object.entries({
+      format: Object.keys(FORMATS), layout: LAYOUTS.map(item => item.id), grade: GRADES.map(item => item.id),
+    })) if (allowed.includes(query.get(key))) this.state[key] = query.get(key);
+    this.state.panels = createPanelState(this.state.layout, 6);
+    const lead = Number(query.get('lead'));
+    if (Number.isInteger(lead) && lead > 0 && lead < this.state.panels.length) {
+      const a = this.state.panels[0], b = this.state.panels[lead];
+      [a.photo, b.photo] = [b.photo, a.photo];
+      [a.role, b.role] = [b.role, a.role];
+    }
+  }
+
+  get crop() { return this.state.panels[this.selected]; }
+  snapshot() { return JSON.stringify({ state: this.state, selected: this.selected }); }
+
+  remember(before) {
+    if (!before || before === this.snapshot()) return;
+    this.past.push(before);
+    if (this.past.length > 80) this.past.shift();
+    this.future.length = 0;
+  }
+
+  finishField() {
+    if (this.pendingField) this.remember(this.pendingField);
+    this.pendingField = null;
+  }
+
+  change(operation) {
+    this.finishField();
+    const before = this.snapshot();
+    operation();
+    this.remember(before);
+    this.refresh();
+  }
+
+  field(operation) {
+    this.pendingField ??= this.snapshot();
+    operation();
+    this.refresh();
+  }
+
+  history(forward) {
+    this.finishField();
+    const source = forward ? this.future : this.past;
+    const destination = forward ? this.past : this.future;
+    if (!source.length) return;
+    destination.push(this.snapshot());
+    const restored = JSON.parse(source.pop());
+    this.state = restored.state;
+    this.selected = restored.selected;
+    this.refresh();
+  }
+
+  select(index) {
+    this.finishField();
+    this.selected = clamp(index, 0, this.state.panels.length - 1);
+    this.refresh();
+  }
+
+  manualCrop() {
+    if (this.crop.autoFrame) {
+      Object.assign(this.crop, fitPhotoToAnchor(this.photos[this.crop.photo], this.geometry.panels[this.selected], this.crop));
+      this.crop.autoFrame = false;
+    }
+    return this.crop;
+  }
+
+  assign(index) {
+    this.crop.photo = index;
+    Object.assign(this.crop, fitPhotoToAnchor(this.photos[index], this.geometry.panels[this.selected], this.crop));
+    this.crop.autoFrame = true;
+  }
+
+  autofill(start = 0, count = this.photos.length) {
+    this.change(() => this.state.panels.forEach((crop, index) => {
+      crop.photo = start + index % count;
+      Object.assign(crop, fitPhotoToAnchor(this.photos[crop.photo], this.geometry.panels[index], crop));
+      crop.autoFrame = true;
+    }));
+  }
+
+  message(text) {
+    clearTimeout(this.messageTimeout);
+    node('toast').textContent = text;
+    node('toast').classList.add('show');
+    this.messageTimeout = setTimeout(() => node('toast').classList.remove('show'), 3000);
+  }
+
+  library() {
+    node('library').replaceChildren(...this.photos.map((photo, index) => {
+      const item = button(null, () => this.change(() => this.assign(index)), {
+        'data-photo': index, title: photo.name, 'aria-label': `Use ${photo.name} in selected panel`,
+      });
+      const image = photo.image.cloneNode();
+      image.alt = '';
+      item.append(image, create('span', photo.name));
+      return item;
+    }));
+    node('assigned-photo').replaceChildren(...this.photos.map((photo, index) => new Option(photo.name, String(index))));
+    node('photo-count').textContent = `${this.photos.length} photos`;
+  }
+
+  importFiles(files) {
+    const accepted = [...files].filter(file => file.type.startsWith('image/')).slice(0, 36);
+    if (!accepted.length) { this.message('Choose JPG, PNG, WebP or another browser-readable photo.'); return; }
+    this.queue = this.queue.then(async () => {
+      const start = this.photos.length;
+      for (const file of accepted) {
+        const url = URL.createObjectURL(file);
+        try {
+          const image = await decodeImage(url);
+          this.ownedURLs.add(url);
+          const name = file.name.replace(/\.[^.]+$/, '').slice(0, 60) || 'Your photo';
+          this.photos.push({ name, image, imported: true });
+        } catch { URL.revokeObjectURL(url); }
+      }
+      const added = this.photos.length - start;
+      if (!added) { this.message('These files could not be decoded.'); return; }
+      this.library();
+      this.autofill(start, added);
+      this.message(`${added} photo${added === 1 ? '' : 's'} added locally`);
+    }).catch(error => {
+      console.error(error);
+      this.message('The photos could not be opened. Try another image.');
     });
-  });
-}
-async function importFiles(files) {
-  const beforeCount = assets.length;
-  const results = await Promise.all([...files].slice(0, 36).map(async file => {
+  }
+
+  exportCanvas(format) {
+    const output = canvasOf(...FORMATS[format]);
+    renderPoster(output, this.state, this.photos, format);
+    return output;
+  }
+
+  async download(format) {
+    const output = this.exportCanvas(format);
+    const file = await new Promise(done => output.toBlob(done, 'image/png'));
+    if (!file) { this.message('PNG encoding failed. Please try again.'); return; }
     const url = URL.createObjectURL(file);
-    try {
-      const image = await decode(url); ownedUrls.add(url);
-      return { image, name: file.name.replace(/\.[^.]+$/, ''), imported: true };
-    } catch { URL.revokeObjectURL(url); return null; }
-  }));
-  assets.push(...results.filter(Boolean));
-  if (assets.length === beforeCount) { tell('Choose a readable image file'); return; }
-  buildLibrary(); autoFill(beforeCount, assets.length - beforeCount);
-  tell(`${assets.length - beforeCount} local photos added`);
-}
-function enqueueImport(files) {
-  const copied = [...files];
-  if (copied.length) importing = importing.then(() => importFiles(copied)).catch(error => { tell('Could not read these files'); console.error(error); });
-}
-function download(format) {
-  const image = exportCanvas(format);
-  image.toBlob(blob => {
-    if (!blob) { tell('PNG could not be created'); return; }
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement('a');
-    anchor.href = url;
-    const title = model.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'neon-tide';
-    anchor.download = `${title}-${format}.png`;
-    anchor.click();
-    setTimeout(() => URL.revokeObjectURL(url), 5000);
-    tell(`PNG saved · ${FORMATS[format].join(' × ')}`);
-  }, 'image/png');
-}
-function showExports() {
-  $('export-cards').replaceChildren(...Object.keys(FORMATS).map(format => {
-    const card = document.createElement('article');
-    card.className = 'export-card';
-    const image = exportCanvas(format);
-    image.setAttribute('aria-label', `${names[format]} export preview`);
-    const title = document.createElement('h3'); title.textContent = names[format];
-    const dimensions = document.createElement('p'); dimensions.textContent = FORMATS[format].join(' × ');
-    const save = button('Download PNG ↗', () => download(format)); save.dataset.trayExport = format;
-    const artwork = document.createElement('div'); artwork.className = 'export-art'; artwork.append(image);
-    card.append(artwork, title, dimensions, save);
-    return card;
-  }));
-  $('export-tray').showModal();
-}
-function liveInput(id, changeValue) {
-  let start;
-  $(id).addEventListener('input', event => {
-    start ??= serialize(); changeValue(event.target.value);
-    syncPanel();
-    $('strength-value').value = `${Math.round(model.strength * 100)}%`;
-    $('ink-value').value = `${Math.round(model.inkAmount * 100)}%`;
-    queueDraw();
-  });
-  $(id).addEventListener('change', () => {
-    if (start !== undefined) remember(start);
-    start = undefined;
-  });
-}
-function manualCrop(key, value) {
-  const crop = selectedCrop();
-  if (crop.autoFrame) Object.assign(crop, fitPhotoToAnchor(assets[crop.photo], geometry.panels[chosen], crop), { autoFrame: false });
-  crop[key] = value;
-}
-function wireControls() {
-  for (const id of ['title', 'subtitle', 'tagline', 'edition']) liveInput(id, value => { model[id] = value; });
-  liveInput('role', value => { selectedCrop().role = value; });
-  for (const [id, key] of [['zoom', 'zoom'], ['pan-x', 'x'], ['pan-y', 'y']]) liveInput(id, value => { manualCrop(key, Number(value)); });
-  liveInput('strength', value => { model.strength = Number(value); });
-  liveInput('ink-amount', value => { model.inkAmount = Number(value); });
-  $('assigned-photo').addEventListener('change', event => edit(() => {
-    selectedCrop().photo = Number(event.target.value);
-    Object.assign(selectedCrop(), fitPhotoToAnchor(assets[selectedCrop().photo], geometry.panels[chosen], selectedCrop()), { autoFrame: true });
-  }));
-  $('layout').addEventListener('change', event => edit(() => {
-    const all = [...model.panels, ...model.reserve];
-    model.layout = event.target.value;
-    model.panels = createPanelState(model.layout, assets.length, all);
-    model.reserve = all.slice(model.panels.length);
-    chosen = Math.min(chosen, model.panels.length - 1);
-  }));
-  $('finish').addEventListener('change', event => edit(() => { model.finish = event.target.value; }));
-  $('hero-cutout').addEventListener('change', event => edit(() => { model.heroCutout = event.target.checked; }));
-  $('face-fit').addEventListener('click', () => edit(() => Object.assign(selectedCrop(), fitPhotoToAnchor(assets[selectedCrop().photo], geometry.panels[chosen], selectedCrop()), { autoFrame: true })));
-  $('flip').addEventListener('click', () => edit(() => { selectedCrop().flip = !selectedCrop().flip; }));
-  $('reset-crop').addEventListener('click', () => edit(() => Object.assign(selectedCrop(), { x: 0, y: 0, zoom: 1, flip: false, autoFrame: false })));
-  $('undo').addEventListener('click', () => history(back, forward));
-  $('redo').addEventListener('click', () => history(forward, back));
-  $('auto-fill').addEventListener('click', () => autoFill());
-  $('photo-input').addEventListener('change', event => { enqueueImport(event.target.files); event.target.value = ''; });
-  $('drop-zone').addEventListener('dragover', event => { event.preventDefault(); $('drop-zone').classList.add('over'); });
-  $('drop-zone').addEventListener('dragleave', () => $('drop-zone').classList.remove('over'));
-  $('drop-zone').addEventListener('drop', event => { event.preventDefault(); $('drop-zone').classList.remove('over'); enqueueImport(event.dataTransfer.files); });
-  $('open-exports').addEventListener('click', showExports);
-  $('close-exports').addEventListener('click', () => $('export-tray').close());
-  $('download-all').addEventListener('click', () => Object.keys(FORMATS).forEach(download));
-  document.addEventListener('keydown', event => {
-    if (!(event.ctrlKey || event.metaKey) || event.target.closest('input,textarea,select')) return;
-    if (event.key.toLowerCase() === 'z') { event.preventDefault(); event.shiftKey ? history(forward, back) : history(back, forward); }
-  });
-}
-function posterPoint(event) {
-  const box = poster.getBoundingClientRect();
-  return { x: (event.clientX - box.left) / box.width * poster.width, y: (event.clientY - box.top) / box.height * poster.height };
-}
-function wireCanvas() {
-  poster.addEventListener('pointerdown', event => {
-    if (event.button !== 0 || !geometry) return;
-    const point = posterPoint(event);
-    const hit = hitTestPanel(geometry, point.x, point.y);
-    if (hit < 0) return;
-    choosePanel(hit);
-    const before = serialize();
-    if (selectedCrop().autoFrame) Object.assign(selectedCrop(), fitPhotoToAnchor(assets[selectedCrop().photo], geometry.panels[chosen], selectedCrop()), { autoFrame: false });
-    pointer = { id: event.pointerId, before, point, crop: { ...selectedCrop() } };
-    poster.setPointerCapture(event.pointerId); poster.classList.add('dragging');
-  });
-  poster.addEventListener('pointermove', event => {
-    if (!pointer || pointer.id !== event.pointerId) return;
-    const point = posterPoint(event);
-    const crop = selectedCrop();
-    const travel = cropTravel(assets[crop.photo].image, geometry.panels[chosen], crop.zoom);
-    if (travel.x > 0) crop.x = clamp(pointer.crop.x + (point.x - pointer.point.x) / travel.x, -1, 1);
-    if (travel.y > 0) crop.y = clamp(pointer.crop.y + (point.y - pointer.point.y) / travel.y, -1, 1);
-    syncPanel(); queueDraw();
-  });
-  poster.addEventListener('lostpointercapture', () => {
-    if (pointer) remember(pointer.before);
-    pointer = null; poster.classList.remove('dragging');
-  });
-  poster.addEventListener('wheel', event => {
-    if (!geometry) return;
-    const point = posterPoint(event), hit = hitTestPanel(geometry, point.x, point.y);
-    if (hit < 0) return;
-    event.preventDefault(); choosePanel(hit);
-    wheelGroup ??= serialize();
-    const baseZoom = selectedCrop().autoFrame ? 1 : selectedCrop().zoom;
-    manualCrop('zoom', clamp(baseZoom - Math.sign(event.deltaY) * .08, 1, 3));
-    syncPanel(); queueDraw(); clearTimeout(wheelEnd);
-    wheelEnd = setTimeout(() => { remember(wheelGroup); wheelGroup = undefined; }, 220);
-  }, { passive: false });
-}
-async function boot() {
-  await document.fonts.load('60px Yellowtail');
-  for (const format of Object.keys(FORMATS)) {
-    const tab = button(names[format], () => edit(() => { model.format = format; }));
-    tab.dataset.format = format; $('format-picker').append(tab);
-    const save = button('', () => download(format)); save.dataset.export = format;
-    const title = document.createElement('strong'); title.textContent = names[format];
-    const size = document.createElement('small'); size.textContent = FORMATS[format].join('×');
-    save.append(title, size); $('export-sizes').append(save);
+    const title = this.state.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'neon-tide';
+    const link = create('a', null, { href: url, download: `${title}-${format}.png` });
+    document.body.append(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 15000);
+    this.message(`Downloaded ${FORMATS[format].join(' × ')} PNG`);
   }
-  for (const layout of LAYOUTS) $('layout').add(new Option(layout.name, layout.id));
-  for (const grade of GRADES) {
-    const swatch = button('', () => edit(() => { model.grade = grade.id; }));
-    swatch.dataset.grade = grade.id; swatch.title = grade.name; swatch.setAttribute('aria-label', grade.name);
-    swatch.style.setProperty('--swatch', `linear-gradient(145deg,${grade.sky.join(',')})`);
-    $('grades').append(swatch);
+
+  exports() {
+    this.finishField();
+    node('export-cards').replaceChildren(...Object.keys(FORMATS).map(format => {
+      const article = create('article', null, { class: 'export-card' });
+      const artwork = create('div', null, { class: 'export-art' });
+      const canvas = this.exportCanvas(format);
+      canvas.setAttribute('aria-label', `${formatLabel[format]} export at ${FORMATS[format].join(' by ')} pixels`);
+      artwork.append(canvas);
+      article.append(artwork, create('h3', formatLabel[format]), create('p', FORMATS[format].join(' × ')),
+        button('Download PNG ↗', () => this.download(format), { 'data-tray-export': format }));
+      return article;
+    }));
+    node('export-tray').showModal();
   }
-  assets.push(...await Promise.all(sampleCards.map(async card => ({ ...card, image: await decode(new URL('../samples/' + card.file, import.meta.url)) }))));
-  buildLibrary(); wireControls(); wireCanvas(); syncControls(); updateHistory();
-  new ResizeObserver(fitPreview).observe($('preview-area'));
-  queueDraw();
+
+  sizePreview() {
+    const area = node('preview-area');
+    const ratio = Math.min((area.clientWidth - 24) / this.canvas.width, (area.clientHeight - 24) / this.canvas.height);
+    if (ratio <= 0) return;
+    node('preview-frame').style.width = Math.floor(this.canvas.width * ratio) + 'px';
+    node('preview-frame').style.height = Math.floor(this.canvas.height * ratio) + 'px';
+  }
+
+  selectionOverlay() {
+    const crop = this.geometry.panels[this.selected];
+    const vertices = crop.vertices.map(point => point.join(',')).join(' ');
+    node('selection').setAttribute('viewBox', `0 0 ${this.canvas.width} ${this.canvas.height}`);
+    ['selection-border', 'clip-border'].forEach(id => node(id).setAttribute('points', vertices));
+    const grid = [1 / 3, 2 / 3].flatMap(t => [
+      `M${crop.x + crop.w * t} ${crop.y}v${crop.h}`,
+      `M${crop.x} ${crop.y + crop.h * t}h${crop.w}`,
+    ]).join('');
+    node('crop-grid').setAttribute('d', grid);
+    node('crop-handles').replaceChildren(...crop.vertices.map(([x, y]) => {
+      const point = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      Object.entries({ cx: x, cy: y, r: this.geometry.unit * 6.5 }).forEach(([key, value]) => point.setAttribute(key, value));
+      return point;
+    }));
+    node('crop-hud').textContent = `PANEL ${this.selected + 1} / ${this.state.panels.length} · ${this.crop.zoom.toFixed(2)}× · DRAG TO POSITION`;
+  }
+
+  controls() {
+    const values = { ...this.state, role: this.crop.role, zoom: this.crop.zoom,
+      'assigned-photo': this.crop.photo, 'pan-x': this.crop.x, 'pan-y': this.crop.y, 'ink-amount': this.state.inkAmount };
+    Object.entries(values).forEach(([id, value]) => {
+      const control = node(id);
+      if (control && control.value !== String(value)) control.value = String(value);
+    });
+    const grade = GRADES.find(item => item.id === this.state.grade);
+    node('grade-label').textContent = grade.name;
+    node('preview-dimensions').textContent = FORMATS[this.state.format].join(' × ');
+    node('panel-number').textContent = `${this.selected + 1} / ${this.state.panels.length}`;
+    node('cast-status').textContent = `${new Set(this.state.panels.map(panel => panel.photo)).size} photos · ${this.state.panels.length} panels`;
+    node('zoom-value').textContent = this.crop.zoom.toFixed(2) + '×';
+    node('x-value').textContent = Math.round(this.crop.x * 100) + '%';
+    node('y-value').textContent = Math.round(this.crop.y * 100) + '%';
+    node('strength-value').textContent = Math.round(this.state.strength * 100) + '%';
+    node('ink-value').textContent = Math.round(this.state.inkAmount * 100) + '%';
+    node('hero-cutout').checked = this.state.heroCutout;
+    node('hero-cutout').disabled = !this.photos[this.state.panels[0].photo]?.silhouette;
+    node('flip').setAttribute('aria-pressed', String(this.crop.flip));
+    node('undo').disabled = !this.past.length && !this.pendingField;
+    node('redo').disabled = !this.future.length;
+    document.querySelectorAll('[data-format]').forEach(item => item.setAttribute('aria-pressed', String(item.dataset.format === this.state.format)));
+    document.querySelectorAll('[data-grade]').forEach(item => item.setAttribute('aria-pressed', String(item.dataset.grade === this.state.grade)));
+    document.querySelectorAll('[data-photo]').forEach(item => item.setAttribute('aria-pressed', String(Number(item.dataset.photo) === this.crop.photo)));
+  }
+
+  panelPicker() {
+    node('panel-picker').replaceChildren(...this.state.panels.map((crop, index) => {
+      const item = button(null, () => this.select(index), {
+        'aria-pressed': String(index === this.selected), 'aria-label': `Panel ${index + 1}: ${crop.role || 'unnamed'}`,
+      });
+      const preview = canvasOf(148, 86);
+      drawPanelPreview(preview, this.photos[crop.photo], crop, this.state);
+      item.append(preview, create('span', crop.role || `PANEL ${index + 1}`));
+      return item;
+    }));
+    drawPanelPreview(node('panel-tile'), this.photos[this.crop.photo], this.crop, this.state);
+  }
+
+  refresh() {
+    this.controls();
+    cancelAnimationFrame(this.repaint);
+    this.repaint = requestAnimationFrame(() => {
+      this.geometry = renderPoster(this.canvas, this.state, this.photos);
+      this.sizePreview();
+      this.selectionOverlay();
+      this.panelPicker();
+      document.documentElement.dataset.ready = 'true';
+    });
+  }
+
+  bindFields() {
+    const ranges = { zoom: 'zoom', 'pan-x': 'x', 'pan-y': 'y' };
+    for (const id of ['title', 'subtitle', 'tagline', 'edition', 'role', 'strength', 'ink-amount', ...Object.keys(ranges)]) {
+      const input = node(id);
+      input.addEventListener('input', () => this.field(() => {
+        if (ranges[id]) this.manualCrop()[ranges[id]] = Number(input.value);
+        else if (id === 'role') this.crop.role = input.value;
+        else if (id === 'strength') this.state.strength = Number(input.value);
+        else if (id === 'ink-amount') this.state.inkAmount = Number(input.value);
+        else this.state[id] = input.value;
+      }));
+      input.addEventListener('change', () => { this.finishField(); this.controls(); });
+      input.addEventListener('blur', () => { this.finishField(); this.controls(); });
+    }
+    node('layout').addEventListener('change', event => this.change(() => {
+      this.state.reserve = this.state.panels.map((crop, index) => crop || this.state.reserve[index]).concat(this.state.reserve.slice(this.state.panels.length));
+      this.state.layout = event.target.value;
+      this.state.panels = createPanelState(this.state.layout, this.photos.length, this.state.reserve);
+      this.selected = Math.min(this.selected, this.state.panels.length - 1);
+    }));
+    node('finish').addEventListener('change', event => this.change(() => { this.state.finish = event.target.value; }));
+    node('assigned-photo').addEventListener('change', event => this.change(() => this.assign(Number(event.target.value))));
+    node('hero-cutout').addEventListener('change', event => this.change(() => { this.state.heroCutout = event.target.checked; }));
+    node('flip').addEventListener('click', () => this.change(() => { this.crop.flip = !this.crop.flip; }));
+    node('face-fit').addEventListener('click', () => this.change(() => {
+      Object.assign(this.crop, fitPhotoToAnchor(this.photos[this.crop.photo], this.geometry.panels[this.selected], this.crop));
+      this.crop.autoFrame = true;
+    }));
+    node('reset-crop').addEventListener('click', () => this.change(() => {
+      Object.assign(this.crop, { zoom: 1, x: 0, y: 0, flip: false, autoFrame: false });
+    }));
+    node('auto-fill').addEventListener('click', () => this.autofill());
+    node('undo').addEventListener('click', () => this.history(false));
+    node('redo').addEventListener('click', () => this.history(true));
+    node('open-exports').addEventListener('click', () => this.exports());
+    node('close-exports').addEventListener('click', () => node('export-tray').close());
+    node('download-all').addEventListener('click', async () => {
+      for (const format of Object.keys(FORMATS)) await this.download(format);
+    });
+    node('photo-input').addEventListener('change', event => {
+      this.importFiles(event.target.files);
+      event.target.value = '';
+    });
+    const drop = node('drop-zone');
+    ['dragenter', 'dragover'].forEach(name => drop.addEventListener(name, event => {
+      event.preventDefault(); drop.classList.add('over');
+    }));
+    ['dragleave', 'drop'].forEach(name => drop.addEventListener(name, event => {
+      event.preventDefault(); drop.classList.remove('over');
+      if (name === 'drop') this.importFiles(event.dataTransfer.files);
+    }));
+    document.addEventListener('keydown', event => {
+      const textField = /^(INPUT|TEXTAREA|SELECT)$/.test(event.target.tagName);
+      if (!textField && (event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'z') {
+        event.preventDefault(); this.history(event.shiftKey);
+      }
+    });
+  }
+
+  bindCanvas() {
+    const coordinates = event => {
+      const bounds = this.canvas.getBoundingClientRect();
+      return [(event.clientX - bounds.left) / bounds.width * this.canvas.width,
+        (event.clientY - bounds.top) / bounds.height * this.canvas.height];
+    };
+    let drag = null;
+    const stop = () => {
+      if (!drag) return;
+      this.remember(drag.before);
+      drag = null;
+      this.canvas.classList.remove('dragging');
+      this.controls();
+    };
+    this.canvas.addEventListener('pointerdown', event => {
+      if (event.button !== 0) return;
+      const [x, y] = coordinates(event);
+      const selected = hitTestPanel(this.geometry, x, y);
+      if (selected < 0) return;
+      this.select(selected);
+      const before = this.snapshot();
+      const crop = { ...this.manualCrop() };
+      drag = { x, y, crop, before, pointer: event.pointerId };
+      this.canvas.setPointerCapture(event.pointerId);
+      this.canvas.classList.add('dragging');
+      event.preventDefault();
+    });
+    this.canvas.addEventListener('pointermove', event => {
+      if (!drag || drag.pointer !== event.pointerId) return;
+      const [x, y] = coordinates(event);
+      const travel = cropTravel(this.photos[this.crop.photo].image, this.geometry.panels[this.selected], this.crop.zoom);
+      this.crop.x = travel.x > .1 ? clamp(drag.crop.x + (x - drag.x) / travel.x, -1, 1) : 0;
+      this.crop.y = travel.y > .1 ? clamp(drag.crop.y + (y - drag.y) / travel.y, -1, 1) : 0;
+      this.refresh();
+    });
+    ['pointerup', 'pointercancel', 'lostpointercapture'].forEach(name => this.canvas.addEventListener(name, stop));
+    this.canvas.addEventListener('wheel', event => {
+      event.preventDefault();
+      this.change(() => {
+        this.manualCrop();
+        this.crop.zoom = clamp(this.crop.zoom * Math.exp(-event.deltaY * .0016), 1, 3);
+      });
+    }, { passive: false });
+  }
+
+  async start() {
+    await document.fonts.load('60px Yellowtail');
+    this.photos = await Promise.all(DEMOS.map(async demo => ({
+      ...demo, image: await decodeImage(new URL('../samples/' + demo.file, import.meta.url)),
+    })));
+    this.library();
+    for (const [format, dimensions] of Object.entries(FORMATS)) {
+      node('format-picker').append(button(formatLabel[format], () => this.change(() => {
+        this.state.format = format;
+      }), { 'data-format': format }));
+      const download = button(null, () => this.download(format), { 'data-export': format });
+      download.append(create('strong', formatLabel[format]), create('small', dimensions.join('×')));
+      node('export-sizes').append(download);
+    }
+    LAYOUTS.forEach(item => node('layout').add(new Option(item.name, item.id)));
+    GRADES.forEach(grade => {
+      const swatch = button(null, () => this.change(() => { this.state.grade = grade.id; }), {
+        'data-grade': grade.id, title: grade.name, 'aria-label': grade.name,
+      });
+      swatch.style.setProperty('--swatch', `linear-gradient(135deg,${grade.sky.join(',')})`);
+      node('grades').append(swatch);
+    });
+    this.geometry = renderPoster(this.canvas, this.state, this.photos);
+    this.bindFields();
+    this.bindCanvas();
+    this.refresh();
+    new ResizeObserver(() => this.sizePreview()).observe(node('preview-area'));
+    window.addEventListener('pagehide', event => {
+      if (!event.persisted) this.ownedURLs.forEach(url => URL.revokeObjectURL(url));
+    });
+  }
 }
-window.addEventListener('pagehide', event => { if (!event.persisted) ownedUrls.forEach(url => URL.revokeObjectURL(url)); });
+
+const studio = new CoverStudio();
+const query = new URLSearchParams(location.search);
 if (query.has('qa') || query.has('shot')) {
   window.coverStudio = {
-    inspect: () => ({ state: structuredClone(model), selected: chosen, photoCount: assets.length, photoMeta: assets.map(a => ({ name: a.name, anchored: !!a.face, silhouette: !!a.silhouette, imported: !!a.imported })), geometry: geometry && structuredClone(geometry) }),
-    exportCanvas,
+    inspect: () => ({
+      state: structuredClone(studio.state), selected: studio.selected, photoCount: studio.photos.length,
+      geometry: studio.geometry && structuredClone(studio.geometry),
+      photoMeta: studio.photos.map(photo => ({
+        name: photo.name, anchored: Boolean(photo.face), silhouette: Boolean(photo.silhouette), imported: Boolean(photo.imported),
+      })),
+    }),
+    exportCanvas: format => studio.exportCanvas(format),
   };
 }
-boot().catch(error => { tell('The studio could not start'); console.error(error); });
+studio.start().catch(error => {
+  studio.message('The studio could not start.');
+  console.error(error);
+});

@@ -1,23 +1,43 @@
-import { cp, mkdir, writeFile } from 'node:fs/promises';
-import { resolve, relative, sep, join } from 'node:path';
+import { cp, lstat, mkdir, readdir, writeFile } from 'node:fs/promises';
+import { isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { buildDossier } from './vendor/makefun-app.ts';
 
-// The entry is a static app. Its only build operation is deterministic packaging.
-const sourceDirectory = import.meta.dirname;
+const repository = import.meta.dirname;
 const destination = resolve(process.env.MAKEFUN_OUTPUT_DIR ?? '/output');
-const location = relative(sourceDirectory, destination);
-if (!location || (!location.startsWith('..' + sep) && location !== '..' && !location.startsWith(sep))) {
-  throw new Error('Choose an output directory outside this repository.');
+function nested(parent, child) {
+  const suffix = relative(parent, child);
+  return suffix === '' || (!isAbsolute(suffix) && suffix !== '..' && !suffix.startsWith('..' + sep));
+}
+if (nested(repository, destination) || nested(destination, repository)) {
+  throw Error('Choose an output directory separate from the source repository.');
+}
+let files = 0;
+let bytes = 0;
+async function packageDirectory(folder) {
+  await mkdir(join(destination, folder), { recursive: true });
+  for (const name of (await readdir(join(repository, folder))).sort()) {
+    const path = join(folder, name);
+    const info = await lstat(join(repository, path));
+    if (info.isSymbolicLink()) throw Error('Entry files must not be symbolic links: ' + path);
+    if (info.isDirectory()) await packageDirectory(path);
+    else if (info.isFile()) {
+      files++;
+      bytes += info.size;
+      if (files > 997 || bytes > 62 * 1024 * 1024) throw Error('Entry exceeds the packaging budget.');
+      await cp(join(repository, path), join(destination, path), { dereference: false });
+    } else throw Error('Unsupported filesystem entry: ' + path);
+  }
 }
 await mkdir(destination, { recursive: true });
-for (const directory of ['app', 'screenshots']) {
-  await cp(join(sourceDirectory, directory), join(destination, directory), { recursive: true, dereference: false });
-}
+await packageDirectory('app');
+await packageDirectory('screenshots');
 const dossier = buildDossier(destination, {
-  app_max_files: 993, app_max_bytes: 48 * 1024 * 1024, app_path_max_bytes: 1000,
+  app_max_files: 993,
+  app_max_bytes: 48 * 1024 * 1024,
+  app_path_max_bytes: 1000,
   text_max_bytes: 160 * 1024,
   screenshots: { max: 4, max_bytes: 256 * 1024 },
 });
-if (dossier.byteLength > 1.5 * 1024 * 1024) throw Error('Dossier exceeds 1.5 MiB');
+if (dossier.byteLength > 1.5 * 1024 * 1024) throw Error('Dossier exceeds its limit.');
 await writeFile(join(destination, 'dossier.json'), dossier);
-console.log(`Static app packaged; dossier.json ${dossier.byteLength} bytes`);
+console.log('Packaged ' + files + ' files (' + bytes + ' bytes), dossier ' + dossier.byteLength + ' bytes.');

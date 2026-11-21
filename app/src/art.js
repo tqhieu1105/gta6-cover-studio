@@ -1,223 +1,321 @@
 import { linear, print, renderChromeTitle, renderSignature, titleSafeRegion } from './lettering.js';
-import { alpha, paintPhoto, projectedFace, sampleSilhouette } from './photo.js';
+import { alpha, canvasOf, paintPhoto, projectedFace, sampleSilhouette } from './photo.js';
 import { polygon, waterfront, sunsetStage, getawayCar, collectorSeal } from './scenes.js';
 export { canvasOf, clamp, cropTravel, fitPhotoToAnchor } from './photo.js';
 
-export const FORMATS = Object.freeze({ landscape: [1920, 1080], portrait: [1080, 1350], square: [1080, 1080] });
+export const FORMATS = Object.freeze({
+  landscape: [1920, 1080],
+  portrait: [1080, 1350],
+  square: [1080, 1080],
+});
+
+function colorway(id, name, sky, warm, rim, cool, hot) {
+  return { id, name, sky, warm, rim, cool, hot };
+}
+
 export const GRADES = [
-  { id: 'violet', name: 'Velvet Sunset', sky: ['#6d346f', '#ef7894', '#ffd19b'], warm: '#ffc18b', rim: '#ffe7b5', cool: '#39378c', hot: '#ec529e', base: '#231731' },
-  { id: 'copper', name: 'Golden Hour', sky: ['#b64d68', '#f69479', '#ffdc9e'], warm: '#ffc17e', rim: '#ffe2a5', cool: '#225778', hot: '#f15c87', base: '#2e1b32' },
-  { id: 'glass', name: 'Sea Glass', sky: ['#3c6d86', '#84cfc4', '#f8dfa6'], warm: '#ffd19a', rim: '#d4ffec', cool: '#137e87', hot: '#eea397', base: '#162e38' },
-  { id: 'ember', name: 'Coral Heat', sky: ['#833d58', '#ed7d70', '#ffd29b'], warm: '#ffc574', rim: '#ffe3a8', cool: '#463775', hot: '#ef587f', base: '#301e32' },
-  { id: 'pearl', name: 'Motel Pearl', sky: ['#77627e', '#c9a7ba', '#f5ddbb'], warm: '#ffdab4', rim: '#ffe8c5', cool: '#4c7b8e', hot: '#ce91ac', base: '#30283d' },
-  { id: 'noir', name: 'Electric Bay', sky: ['#382660', '#a95cab', '#efa8b0'], warm: '#ffbba8', rim: '#b8ffe8', cool: '#304b9a', hot: '#e65aaf', base: '#201d37' },
+  colorway('ember', 'Tangerine Dusk', ['#6d254c', '#f27967', '#ffd394'], '#ffc580', '#fff0ba', '#413067', '#ec5686'),
+  colorway('violet', 'Velvet Sunset', ['#523163', '#e4769c', '#ffca9e'], '#ffbd97', '#ffe2bd', '#382865', '#ea558e'),
+  colorway('copper', 'Sunlit Brass', ['#8a3855', '#f29d66', '#ffe2a5'], '#ffc779', '#ffedb9', '#2d535f', '#ee6668'),
+  colorway('glass', 'Sea Glass', ['#254d75', '#72c9b2', '#f9e2aa'], '#ffcc9e', '#e2fff4', '#186b72', '#f67e9e'),
+  colorway('pearl', 'Pink Pearl', ['#655774', '#c995ae', '#ffdfba'], '#ffdeb5', '#ffeadd', '#465a77', '#c077a1'),
+  colorway('noir', 'Electric Bay', ['#25194c', '#aa4bad', '#efa4ac'], '#ffb2a8', '#bffff1', '#2e4081', '#f45db9'),
 ];
+
+function layout(id, name, count) {
+  return { id, name, count };
+}
+
 export const LAYOUTS = [
-  { id: 'premiere', name: 'Premiere · six cast', count: 6 },
-  { id: 'rush', name: 'Spotlight · six cast', count: 6 },
-  { id: 'cascade', name: 'Cascade · six cast', count: 6 },
-  { id: 'overdrive', name: 'Overdrive · four', count: 4 },
-  { id: 'double', name: 'Double feature', count: 2 },
-  { id: 'trio', name: 'Three tickets', count: 3 },
-  { id: 'single', name: 'One night only', count: 1 },
-  { id: 'seaside', name: 'Seaside · four', count: 4 },
+  layout('premiere', 'Premiere · six cast', 6),
+  layout('rush', 'Spotlight · six cast', 6),
+  layout('cascade', 'Cascade · six cast', 6),
+  layout('overdrive', 'Overdrive · four cast', 4),
+  layout('double', 'Double feature', 2),
+  layout('trio', 'Three tickets', 3),
+  layout('single', 'One night only', 1),
+  layout('seaside', 'Seaside · four cast', 4),
 ];
-const roleNames = ['THE SIREN', 'THE FIXER', 'THE INSIDER', 'THE DRIVER', 'THE SWITCH', 'THE CAPTAIN'];
-const dark = '#170e25';
-const cream = '#fff1d5';
-export function createPanelState(layoutId, photoCount, preserved = []) {
-  const design = LAYOUTS.find(item => item.id === layoutId) || LAYOUTS[0];
-  return Array.from({ length: design.count }, (_, index) => preserved[index] || {
-    photo: index % Math.max(1, photoCount), role: roleNames[index],
-    x: 0, y: 0, zoom: 1, flip: false, autoFrame: true,
+
+const roles = ['THE SIREN', 'THE FIXER', 'THE INSIDER', 'THE DRIVER', 'THE SWITCH', 'THE CAPTAIN'];
+const shadow = '#180e23';
+const cream = '#fff0d3';
+
+export function createPanelState(layoutId, photoCount, prior = []) {
+  const template = LAYOUTS.find(option => option.id === layoutId) || LAYOUTS[0];
+  return Array.from({ length: template.count }, (_, index) => prior[index] ?? {
+    photo: index % Math.max(1, photoCount),
+    role: roles[index],
+    zoom: 1,
+    x: 0,
+    y: 0,
+    flip: false,
+    autoFrame: true,
   });
 }
 
-function fullRect(x0, y0, x1, y1) { return [[x0, y0], [x1, y0], [x1, y1], [x0, y1]]; }
-function sixCastPolygons(format, layoutId) {
-  if (layoutId === 'rush') return [
-    [[0, 0], [.47, 0], [.41, 1], [0, 1]],
-    [[.47, 0], [.73, 0], [.71, .38], [.447, .38]],
-    [[.73, 0], [1, 0], [1, .38], [.71, .38]],
-    [[.447, .38], [.71, .38], [.69, .72], [.427, .72]],
-    [[.71, .38], [1, .38], [1, .72], [.69, .72]],
-    [[.427, .72], [1, .72], [1, 1], [.41, 1]],
-  ];
-  if (format === 'portrait') return [
-    [[.32, .34], [.68, .29], [.76, 1], [.24, 1]],
-    [[0, 0], [.35, 0], [.32, .34], [.28, .66], [0, .62]],
-    [[.35, 0], [.70, 0], [.68, .29], [.32, .34]],
-    [[.70, 0], [1, 0], [1, .55], [.71, .56], [.68, .29]],
-    [[0, .62], [.28, .66], [.24, 1], [0, 1]],
-    [[.71, .56], [1, .55], [1, 1], [.76, 1]],
-  ];
-  if (layoutId === 'cascade') return [
-    [[.25, 0], [.77, 0], [.72, .59], [.29, .61]],
-    [[0, 0], [.25, 0], [.27, .32], [0, .38]],
-    [[0, .38], [.27, .32], [.29, .61], [.41, .60], [.38, 1], [0, 1]],
-    [[.77, 0], [1, 0], [1, .35], [.74, .34]],
-    [[.74, .34], [1, .35], [1, .69], [.71, .68]],
-    [[.41, .60], [.72, .59], [.71, .68], [1, .69], [1, 1], [.38, 1]],
-  ];
-  return format === 'landscape' ? [
-    [[.29, 0], [.69, 0], [.63, 1], [.23, 1]],
-    [[0, 0], [.29, 0], [.262, .47], [0, .42]],
-    [[0, .42], [.262, .47], [.23, 1], [0, 1]],
-    [[.69, 0], [1, 0], [1, .31], [.6714, .31]],
-    [[.6714, .31], [1, .31], [1, .64], [.6516, .64]],
-    [[.6516, .64], [1, .64], [1, 1], [.63, 1]],
-  ] : [
-    [[.26, 0], [.74, 0], [.68, 1], [.32, 1]],
-    [[0, 0], [.26, 0], [.285, .42], [0, .46]],
-    [[0, .46], [.285, .42], [.32, 1], [0, 1]],
-    [[.74, 0], [1, 0], [1, .34], [.7196, .34]],
-    [[.7196, .34], [1, .34], [1, .67], [.6998, .67]],
-    [[.6998, .67], [1, .67], [1, 1], [.68, 1]],
+// A seam runs from a fraction on the top edge to one on the bottom edge.
+function point(seam, y) {
+  return [seam[0] * (1 - y) + seam[1] * y, y];
+}
+
+function cell(left, right, top, bottom) {
+  return [point(left, top[0]), point(right, top[1]), point(right, bottom[1]), point(left, bottom[0])];
+}
+
+const top = [0, 0];
+const bottom = [1, 1];
+const west = [0, 0];
+const east = [1, 1];
+
+function gallery(left, right, westBreak, eastBreaks) {
+  const [row1, row2] = eastBreaks;
+  return [
+    cell(left, right, top, bottom),
+    cell(west, left, top, westBreak),
+    cell(west, left, westBreak, bottom),
+    cell(right, east, top, row1),
+    cell(right, east, row1, row2),
+    cell(right, east, row2, bottom),
   ];
 }
-function stripPolygons(number, horizontal) {
-  if (number === 1) return [fullRect(0, 0, 1, 1)];
-  const stops = [0, .44, ...Array.from({ length: number - 1 }, (_, i) => .44 + .56 * (i + 1) / (number - 1))];
-  return stops.slice(0, -1).map((left, index) => {
-    const right = stops[index + 1];
-    const points = [[left ? left + .035 : 0, 0], [right < 1 ? right + .035 : 1, 0],
-      [right < 1 ? right - .035 : 1, 1], [left ? left - .035 : 0, 1]];
-    return horizontal ? points.map(([x, y]) => [y, x]) : points;
+
+function portraitGallery() {
+  const crown = [[.29, .316], [.655, .277]];
+  const hem = [[.22, 1], [.763, 1]];
+  const westJoint = [.25, .632];
+  const eastJoint = [.707, .58];
+  return [
+    [crown[0], crown[1], eastJoint, hem[1], hem[0], westJoint],
+    [[0, 0], [.32, 0], crown[0], westJoint, [0, .573]],
+    [[.32, 0], [.698, 0], crown[1], crown[0]],
+    [[.698, 0], [1, 0], [1, .539], eastJoint, crown[1]],
+    [[0, .573], westJoint, hem[0], [0, 1]],
+    [eastJoint, [1, .539], [1, 1], hem[1]],
+  ];
+}
+
+function spotlight() {
+  const lead = [.455, .36];
+  const spine = [.755, .69];
+  return [
+    cell(west, lead, top, bottom),
+    cell(lead, spine, top, [.36, .32]),
+    cell(spine, east, top, [.32, .385]),
+    cell(lead, spine, [.36, .32], [.70, .67]),
+    cell(spine, east, [.32, .385], [.67, .72]),
+    [point(lead, .70), point(spine, .67), point(east, .72), point(east, 1), point(lead, 1)],
+  ];
+}
+
+function panelShapes(design, format) {
+  if (design.id === 'rush') return spotlight();
+  if (design.count === 6) {
+    if (format === 'portrait') return portraitGallery();
+    if (design.id === 'cascade') return gallery([.27, .34], [.77, .68], [.36, .43], [[.33, .29], [.68, .62]]);
+    if (format === 'square') return gallery([.235, .31], [.77, .695], [.41, .46], [[.33, .29], [.67, .63]]);
+    return gallery([.291, .227], [.695, .756], [.39, .47], [[.342, .26], [.664, .594]]);
+  }
+  if (design.count === 1) return [cell(west, east, top, bottom)];
+  const seams = Array.from({ length: design.count + 1 }, (_, index) => {
+    if (index === 0) return west;
+    if (index === design.count) return east;
+    const position = .44 + .56 * (index - 1) / (design.count - 1);
+    return [position + .04, position - .04];
+  });
+  return seams.slice(0,-1).map((seam, index) => {
+    const shape = cell(seam, seams[index + 1], top, bottom);
+    return design.id === 'seaside' ? shape.map(([x, y]) => [y, x]) : shape;
   });
 }
+
 export function posterGeometry(state, width, height) {
-  const design = LAYOUTS.find(item => item.id === state.layout) || LAYOUTS[0];
   const format = width > height * 1.12 ? 'landscape' : height > width * 1.12 ? 'portrait' : 'square';
   const unit = Math.min(width, height) / 1080;
-  const edge = 18 * unit;
-  const top = 67 * unit;
-  const fieldHeight = height * (format === 'landscape' ? .68 : .72);
-  const fieldWidth = width - edge * 2;
-  const shapes = design.count === 6 ? sixCastPolygons(format, design.id) : stripPolygons(design.count, design.id === 'seaside');
-  const panels = shapes.map((shape, index) => {
-    const vertices = shape.map(([x, y]) => [edge + fieldWidth * x, top + fieldHeight * y]);
-    const xs = vertices.map(p => p[0]), ys = vertices.map(p => p[1]);
-    return { index, vertices, x: Math.min(...xs), y: Math.min(...ys), w: Math.max(...xs) - Math.min(...xs), h: Math.max(...ys) - Math.min(...ys) };
+  const edge = 16 * unit;
+  const topMargin = 59 * unit;
+  // Each format receives new crop bounds; manual framing remains panel-specific.
+  const fieldHeight = height * (format === 'landscape' ? .732 : .727);
+  const design = LAYOUTS.find(item => item.id === state.layout) || LAYOUTS[0];
+  const panels = panelShapes(design, format).map((shape, index) => {
+    const vertices = shape.map(([x, y]) => [edge + x * (width - 2 * edge), topMargin + y * fieldHeight]);
+    const horizontal = vertices.map(pair => pair[0]);
+    const vertical = vertices.map(pair => pair[1]);
+    const x = Math.min(...horizontal);
+    const y = Math.min(...vertical);
+    return { index, x, y, w: Math.max(...horizontal) - x, h: Math.max(...vertical) - y, vertices };
   });
-  return { width, height, unit, edge, wide: format === 'landscape', format, top, fieldHeight, panels, title: titleSafeRegion(width, height) };
+  return { width, height, unit, edge, format, wide: format === 'landscape',
+    top: topMargin, fieldHeight, panels, title: titleSafeRegion(width, height) };
 }
+
+function horizontalSection(vertices, y) {
+  const intersections = [];
+  for (let index = 0; index < vertices.length; index++) {
+    const [ax, ay] = vertices[index];
+    const [bx, by] = vertices[(index + 1) % vertices.length];
+    if ((ay > y) === (by > y)) continue;
+    intersections.push(ax + (bx - ax) * (y - ay) / (by - ay));
+  }
+  return intersections.sort((a,b) => a - b);
+}
+
 export function hitTestPanel(geometry, x, y) {
-  for (const panel of geometry.panels) {
-    let hits = 0;
-    for (let i = 0; i < panel.vertices.length; i++) {
-      const [ax, ay] = panel.vertices[i], [bx, by] = panel.vertices[(i + 1) % panel.vertices.length];
-      if ((ay > y) !== (by > y) && x < ax + (y - ay) * (bx - ax) / (by - ay)) hits++;
+  for (const panel of geometry?.panels || []) {
+    const intersections = horizontalSection(panel.vertices, y);
+    for (let index = 0; index < intersections.length; index += 2) {
+      if (x >= intersections[index] && x < intersections[index + 1]) return panel.index;
     }
-    if (hits % 2) return panel.index;
   }
   return -1;
 }
-function spanAt(panel, y) {
-  const crossing = [];
-  panel.vertices.forEach(([x, y0], i) => {
-    const [x1, y1] = panel.vertices[(i + 1) % panel.vertices.length];
-    if ((y0 > y) !== (y1 > y)) crossing.push(x + (y - y0) * (x1 - x) / (y1 - y0));
-  });
-  return crossing.length >= 2 ? [Math.min(...crossing), Math.max(...crossing)] : [panel.x, panel.x + panel.w];
-}
-function castLabel(ctx, panel, text, geometry, grade) {
-  if (!text.trim()) return;
-  const u = geometry.unit;
-  let baseline = panel.y + 34 * u;
-  if (panel.index === 0) baseline = panel.y + panel.h * .64;
-  if (baseline > geometry.height * .67) return;
-  const [left, right] = spanAt(panel, baseline - 10 * u);
-  const size = (panel.index === 0 ? 23 : 21) * u;
-  ctx.save(); ctx.font = `900 ${size}px Arial`;
-  const width = Math.min(ctx.measureText(text.toUpperCase()).width + 24 * u, right - left - 24 * u);
-  const x = panel.x > geometry.width / 2 ? right - width - 12 * u : left + 12 * u;
-  ctx.translate(x, baseline); ctx.rotate(-.02);
-  ctx.fillStyle = panel.index === 0 ? grade.rim : panel.index % 2 ? cream : '#b7e9e2';
-  polygon(ctx, [[3 * u, -25 * u], [width, -25 * u], [width - 3 * u, 5 * u], [0, 5 * u]]); ctx.fill();
-  print(ctx, text.toUpperCase(), 9 * u, -3 * u, size, { color: dark, limit: width - 18 * u });
+
+function castLabel(ctx, panel, role, geometry, grade) {
+  const label = role.trim().toUpperCase();
+  if (!label) return;
+  const { unit, height } = geometry;
+  const size = (panel.index ? 19 : 21) * unit;
+  const y = panel.index ? panel.y + 29 * unit : panel.y + panel.h * .61;
+  if (y > height * .675) return;
+  const edges = horizontalSection(panel.vertices, y - size / 3);
+  if (edges.length < 2) return;
+  const left = edges[0] + 10 * unit;
+  const right = edges.at(-1) - 10 * unit;
+  ctx.save();
+  ctx.font = `900 ${size}px Arial`;
+  const length = Math.min(ctx.measureText(label).width + 19 * unit, right - left);
+  if (length >= 36 * unit) {
+    const x = panel.x > geometry.width / 2 ? right - length : left;
+    ctx.translate(x, y);
+    ctx.fillStyle = alpha(shadow, .84);
+    polygon(ctx, [[0, -size], [length, -size], [length - 4 * unit, size * .25], [0, size * .25]]);
+    ctx.fill();
+    ctx.fillStyle = panel.index ? grade.hot : grade.rim;
+    ctx.fillRect(0, -size, 2 * unit, size * 1.25);
+    print(ctx, label, 8 * unit, -2.4 * unit, size, {
+      color: cream, limit: length - 14 * unit, spacing: .16 * unit,
+    });
+  }
   ctx.restore();
 }
-let photoLayer;
-function paintCast(ctx, state, assets, geometry, grade) {
-  const { width: w, height: h, unit: u, edge } = geometry;
-  photoLayer ||= document.createElement('canvas');
-  photoLayer.width = w; photoLayer.height = h;
-  const layer = photoLayer.getContext('2d'); layer.imageSmoothingQuality = 'high';
+
+let montage;
+function renderCast(ctx, state, assets, geometry, grade) {
+  const { width, height, unit } = geometry;
+  montage ??= canvasOf(width, height);
+  montage.width = width;
+  montage.height = height;
+  const layer = montage.getContext('2d');
+  layer.imageSmoothingQuality = 'high';
+
   for (const panel of geometry.panels) {
-    const crop = state.panels[panel.index], asset = assets[crop.photo];
-    layer.save(); polygon(layer, panel.vertices); layer.clip();
-    const silhouette = panel.index === 0 && state.heroCutout ? sampleSilhouette(asset, panel, crop) : null;
-    if (silhouette) {
+    const crop = state.panels[panel.index];
+    const asset = assets[crop.photo];
+    const tracedLead = panel.index === 0 && state.heroCutout && sampleSilhouette(asset, panel, crop);
+    layer.save();
+    polygon(layer, panel.vertices);
+    layer.clip();
+    if (tracedLead) {
       sunsetStage(layer, panel, grade);
-      layer.save();
-      layer.strokeStyle = alpha(grade.rim, .70); layer.lineWidth = 5 * u;
-      layer.shadowBlur = 10 * u; layer.shadowColor = grade.rim;
-      layer.stroke(silhouette); layer.shadowBlur = 0;
-      layer.clip(silhouette);
-      paintPhoto(layer, asset, panel, crop, grade, state.strength, state.inkAmount);
-      layer.restore();
-    } else paintPhoto(layer, asset, panel, crop, grade, state.strength, state.inkAmount);
+      layer.strokeStyle = alpha(grade.rim, .82);
+      layer.lineWidth = 3 * unit;
+      layer.shadowColor = grade.hot;
+      layer.shadowBlur = 17 * unit;
+      layer.stroke(tracedLead);
+      layer.shadowBlur = 0;
+      layer.clip(tracedLead);
+    }
+    paintPhoto(layer, asset, panel, crop, grade, state.strength, state.inkAmount);
     layer.restore();
   }
+  // Drawing seams after every crop keeps the same line weight on both sides of a cut.
+  layer.lineJoin = 'round';
   for (const panel of geometry.panels) {
     polygon(layer, panel.vertices);
-    layer.lineJoin = 'bevel'; layer.lineWidth = 9 * u; layer.strokeStyle = dark; layer.stroke();
-    layer.lineWidth = 2 * u; layer.strokeStyle = alpha(grade.rim, panel.index ? .61 : .95); layer.stroke();
+    layer.strokeStyle = shadow;
+    layer.lineWidth = 6 * unit;
+    layer.stroke();
+    layer.strokeStyle = alpha(grade.rim, .61);
+    layer.lineWidth = 1.35 * unit;
+    layer.stroke();
   }
-  layer.save(); layer.globalCompositeOperation = 'destination-in';
-  layer.fillStyle = linear(layer, 0, h * .65, 0, h * .85, [[0, '#fff'], [.34, '#ffff'], [1, '#fff0']]);
-  layer.fillRect(0, 0, w, h); layer.restore();
-  ctx.drawImage(photoLayer, 0, 0);
-  ctx.fillStyle = linear(ctx, 0, h * .68, 0, h * .93, ['#0000', alpha(dark, .36), alpha(dark, .14)]);
-  ctx.fillRect(edge, h * .68, w - 2 * edge, h * .25);
+  layer.globalCompositeOperation = 'destination-in';
+  layer.fillStyle = linear(layer, 0, height * .574, 0, height * .845, [
+    [0, '#fff'], [.32, '#fffe'], [.72, '#fff7'], [1, '#fff0'],
+  ]);
+  layer.fillRect(0, 0, width, height);
+  ctx.drawImage(montage, 0, 0);
 }
-function printFrame(ctx, geometry, grade, state) {
-  const { width: w, height: h, unit: u, edge } = geometry;
-  ctx.strokeStyle = alpha(grade.rim, .9); ctx.lineWidth = 1.5 * u;
-  ctx.strokeRect(edge - 5 * u, 13 * u, w - edge * 2 + 10 * u, h - 26 * u);
-  print(ctx, '★★★★★', edge + 11 * u, 47 * u, 24 * u, { color: grade.rim, spacing: u });
-  print(ctx, 'SIX LIVES. ONE COAST. NO WAY BACK.', w / 2, 47 * u, 20 * u,
-    { align: 'center', limit: w * .59, spacing: 2 * u });
-  print(ctx, state.edition.toUpperCase(), w - edge - 11 * u, 47 * u, 17 * u,
-    { align: 'right', limit: w * .22, color: grade.rim, spacing: u });
-  const ruleY = h - 64 * u;
-  ctx.fillStyle = dark; ctx.fillRect(edge, ruleY, w - edge * 2, 49 * u);
-  ctx.fillStyle = alpha(grade.rim, .68); ctx.fillRect(edge, ruleY, w - edge * 2, u);
-  print(ctx, 'COMING SOON', edge + 9 * u, ruleY + 25 * u, 17 * u, { color: grade.rim, spacing: 1.3 * u });
-  print(ctx, state.tagline.toUpperCase(), w / 2, ruleY + 21 * u, 19 * u, { align: 'center', limit: w * .55, spacing: 1.8 * u });
-  print(ctx, 'NIGHTFALL PICTURES  ·  A FILM BY YOU  ·  SHOT ON YOUR CAMERA', w / 2, ruleY + 38 * u, 9 * u,
-    { align: 'center', limit: w * .59, spacing: u, color: '#d6bdd0' });
-  const bx = w - edge - 94 * u;
-  ctx.fillStyle = cream; ctx.fillRect(bx, ruleY + 9 * u, 84 * u, 27 * u);
-  let cursor = bx + 5 * u; ctx.fillStyle = dark;
-  for (let i = 0; i < 25; i++) {
-    const bar = (i * 7 % 3 + 1) * u;
-    ctx.fillRect(cursor, ruleY + 12 * u, bar, (i % 5 ? 17 : 21) * u); cursor += bar + u;
+
+function borderAndCredits(ctx, { width, height, unit, edge }, grade, { edition, tagline }) {
+  const y0 = 13 * unit;
+  ctx.strokeStyle = alpha(grade.rim, .68);
+  ctx.lineWidth = 1.3 * unit;
+  ctx.strokeRect(edge - 3 * unit, y0, width - 2 * edge + 6 * unit, height - 2 * y0);
+  const headerBaseline = 43 * unit;
+  print(ctx, '✦ ✦ ✦ ✦ ✦', edge + 10 * unit, headerBaseline, 20 * unit, { color: grade.rim });
+  print(ctx, 'A STORY FROM THE SUN COAST', width / 2, headerBaseline, 21 * unit, {
+    align: 'center', limit: width * .47, spacing: 2.2 * unit, color: cream,
+  });
+  print(ctx, edition.toUpperCase(), width - edge - 10 * unit, headerBaseline, 18 * unit, {
+    align: 'right', limit: width * .24, spacing: 1.5 * unit, color: grade.rim,
+  });
+  const bottom = height - 63 * unit;
+  ctx.fillStyle = shadow;
+  ctx.fillRect(edge, bottom, width - edge * 2, 50 * unit);
+  ctx.fillStyle = alpha(grade.rim, .64);
+  ctx.fillRect(edge, bottom, width - 2 * edge, unit);
+  print(ctx, 'AFTER DARK', edge + 11 * unit, bottom + 30 * unit, 16 * unit, {
+    color: grade.rim, spacing: 1.3 * unit,
+  });
+  print(ctx, tagline.toUpperCase(), width / 2, bottom + 23 * unit, 19 * unit, {
+    align: 'center', limit: width * .56, spacing: 1.4 * unit,
+  });
+  print(ctx, 'SUN COAST PICTURES  /  AN INDEPENDENT PRODUCTION', width / 2, bottom + 40 * unit, 10 * unit, {
+    align: 'center', limit: width * .55, spacing: 1.7 * unit, color: '#e1c6bd',
+  });
+  const markX = width - edge - 83 * unit;
+  ctx.fillStyle = cream;
+  ctx.fillRect(markX, bottom + 10 * unit, 73 * unit, 28 * unit);
+  ctx.fillStyle = shadow;
+  let cursor = markX + 5 * unit;
+  for (const [index, digit] of Array.from('13212321213121231231321').entries()) {
+    const weight = Number(digit) * unit;
+    ctx.fillRect(cursor, bottom + 14 * unit, weight, (index % 4 ? 16 : 19) * unit);
+    cursor += weight + unit;
   }
 }
+
 export function renderPoster(canvas, state, assets, format = state.format) {
-  const [w, h] = FORMATS[format];
-  if (canvas.width !== w) canvas.width = w;
-  if (canvas.height !== h) canvas.height = h;
+  const [width, height] = FORMATS[format];
+  if (canvas.width !== width) canvas.width = width;
+  if (canvas.height !== height) canvas.height = height;
   const ctx = canvas.getContext('2d');
-  const geometry = posterGeometry(state, w, h);
-  const grade = GRADES.find(item => item.id === state.grade) || GRADES[0];
-  ctx.save(); ctx.imageSmoothingQuality = 'high';
-  ctx.fillStyle = dark; ctx.fillRect(0, 0, w, h);
-  waterfront(ctx, w, h, grade);
-  paintCast(ctx, state, assets, geometry, grade);
-  geometry.panels.forEach(panel => castLabel(ctx, panel, state.panels[panel.index].role, geometry, grade));
-  renderChromeTitle(ctx, state.title, w, h, state.finish);
-  renderSignature(ctx, state.subtitle, w, h, grade.rim, grade.hot);
-  if (geometry.wide) getawayCar(ctx, w * .055, h * .846, w * .155, grade);
-  collectorSeal(ctx, w * .946, h * .91, (geometry.wide ? 40 : 31) * geometry.unit, grade);
-  printFrame(ctx, geometry, grade, state);
+  const geometry = posterGeometry(state, width, height);
+  const grade = GRADES.find(color => color.id === state.grade) || GRADES[0];
+  ctx.save();
+  ctx.imageSmoothingQuality = 'high';
+  waterfront(ctx, width, height, grade);
+  renderCast(ctx, state, assets, geometry, grade);
+  for (const panel of geometry.panels) castLabel(ctx, panel, state.panels[panel.index].role, geometry, grade);
+  if (geometry.wide) getawayCar(ctx, width * .04, height * .86, width * .125, grade);
+  renderChromeTitle(ctx, state.title, width, height, state.finish);
+  renderSignature(ctx, state.subtitle, width, height, grade.rim, grade.hot);
+  collectorSeal(ctx, width * .948, height * .898, geometry.unit * (geometry.wide ? 38 : 28), grade);
+  borderAndCredits(ctx, geometry, grade, state);
   ctx.restore();
-  geometry.faces = geometry.panels.map(panel => projectedFace(assets[state.panels[panel.index].photo], panel, state.panels[panel.index]));
+  geometry.faces = geometry.panels.map(panel => {
+    const crop = state.panels[panel.index];
+    return projectedFace(assets[crop.photo], panel, crop);
+  });
   return geometry;
 }
+
 export function drawPanelPreview(canvas, asset, crop, state) {
-  const ctx = canvas.getContext('2d'); ctx.clearRect(0, 0, canvas.width, canvas.height);
-  paintPhoto(ctx, asset, { x: 0, y: 0, w: canvas.width, h: canvas.height }, crop,
-    GRADES.find(grade => grade.id === state.grade) || GRADES[0], state.strength, state.inkAmount);
+  const ctx = canvas.getContext('2d');
+  const grade = GRADES.find(color => color.id === state.grade) || GRADES[0];
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.imageSmoothingQuality = 'high';
+  paintPhoto(ctx, asset, { x: 0, y: 0, w: canvas.width, h: canvas.height }, crop, grade,
+    state.strength, state.inkAmount);
 }

@@ -1,8 +1,11 @@
-SFHQ-T2I synthetic portrait derivatives: velvet.jpg, night-shift.jpg,
-insider.jpg and switchboard.jpg.
+Synthetic sample derivatives used by Neon Tide Cover Studio
+
+velvet.jpg, night-shift.jpg, insider.jpg and switchboard.jpg are locally
+cropped and color-adjusted fictional adult portraits from SFHQ-T2I.
 Copyright (c) David Beniaguev
 Source: https://github.com/SelfishGene/SFHQ-T2I-dataset
-License: MIT (as identified by the dataset's Kaggle listing)
+License: MIT (the dataset listing on Kaggle identifies this license).
+The app README records the original sheet and source rectangle of each crop.
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -22,5 +25,5 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
-boulevard.jpg and pier.jpg are model-generated samples supplied by make.fun
-in this competition's starter kit. They are retained without modification.
+The synthetic boulevard.jpg and pier.jpg photos are supplied in make.fun's
+starter for this competition and are redistributed unchanged.

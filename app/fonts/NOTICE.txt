@@ -1,5 +1,6 @@
-Yellowtail Regular
-Copyright (c) 2011 by Brian J. Bonislawsky DBA Astigmatic (AOETI).
-All rights reserved. Available under the Apache 2.0 licence.
+The editable subtitle uses Yellowtail Regular.
+Copyright (c) 2011 Brian J. Bonislawsky DBA Astigmatic (AOETI).
 
-The font is shipped unchanged. See Yellowtail-LICENSE.txt for Apache 2.0.
+Yellowtail is redistributed without changes under Apache License 2.0.
+The complete license is Yellowtail-LICENSE.txt in this directory.
+The studio's block alphabet is drawn by its own source and does not use this font.

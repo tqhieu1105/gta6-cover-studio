@@ -1,11 +1,12 @@
-# Keep machine data and packaging products outside the entry.
-/node_modules/
-/output/
-/out/
-/.cache/
+# Credentials and workstation metadata
 .env
 .env.*
+.DS_Store
 *.log
 *.tmp
-.DS_Store
+# The app has no install or build products
+node_modules/
+.cache/
+/out/
+/output/
 /.makefun/local*
