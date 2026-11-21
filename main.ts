@@ -28,6 +28,13 @@ async function packageDirectory(folder) {
     } else throw Error('Unsupported filesystem entry: ' + path);
   }
 }
+const screenshotNames = (await readdir(join(repository, 'screenshots'))).sort();
+if (screenshotNames.length < 3 || screenshotNames.length > 4 ||
+    screenshotNames.some(name => !/^[1-4]-[a-z0-9-]+\.(jpg|png)$/.test(name))) {
+  throw Error('Provide three or four clearly ordered PNG/JPEG dossier screenshots.');
+}
+const entry = await lstat(join(repository, 'app', 'index.html'));
+if (!entry.isFile() || entry.isSymbolicLink()) throw Error('app/index.html must be a regular file.');
 await mkdir(destination, { recursive: true });
 await packageDirectory('app');
 await packageDirectory('screenshots');
